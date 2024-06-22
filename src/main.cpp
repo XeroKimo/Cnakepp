@@ -1,19 +1,5 @@
 #include "bn_core.h"
-#include "DisplayControlRegister.hpp"
-
-template<class Ty>
-Ty SetBackgroundMode()
-{
-    cgba::DisplayControlRegister currentStatus = cgba::GetDisplayControlRegister();
-    currentStatus &= ~cgba::DisplayControlRegister::Background_Mode_Mask;
-    currentStatus |= Ty::modeValue | Ty::backgroundLayerSupport;
-    cgba::GetDisplayControlRegister() = currentStatus;
-    return Ty{};
-}
-// int main()
-// {
-//     cgba::BackgroundMode3::PlotPixel({120, 80}, {255, 0, 0});
-// }
+#include "Display.hpp"
 
 int main()
 {
@@ -21,11 +7,14 @@ int main()
     bn::core::init();
     //Clear DisplayControlStatus for now as bn::core::init enables some of the stuff
     //making SetBackgroundMode not work as intended, without bn::core::init, force blank flag is enabled by default for some reason
-    cgba::GetDisplayControlRegister() = {};
-    
+    //cgba::GetDisplayControlRegister() = {};
+    cgba::Display::HideObjectWindow();
+    cgba::Display::HideWindow0();
+    cgba::Display::HideWindow1();
 
     // SetBackgroundMode<cgba::BackgroundMode0>();
-    auto background = SetBackgroundMode<cgba::BackgroundMode3>();
+    auto& background = cgba::Display::SetBackgroundMode<cgba::BackgroundMode3>();
+    background.ShowBackground2();
     // BN_ASSERT((cgba::GetDisplayControlStatus() & cgba::DisplayControlStatus::Background_Mode_Mask) == cgba::BackgroundMode3::modeValue);
     
     background.PlotPixel({120, 80}, {255, 0, 0});

@@ -1,12 +1,5 @@
 {
     "files.associations": {
-        "cstring": "cpp",
-        "variant": "cpp",
-        "array": "cpp",
-        "string": "cpp",
-        "string_view": "cpp",
-        "ranges": "cpp",
-        "span": "cpp",
-        "type_traits": "cpp"
+
     }
 }
