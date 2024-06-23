@@ -3,6 +3,7 @@
 #include "MemoryRegion.hpp"
 #include "Math.hpp"
 #include "EnumFlags.hpp"
+#include <limits>
 
 namespace cgba
 {   
@@ -133,6 +134,38 @@ namespace cgba
     DECLARE_ENUM_FLAG_OPS2(DisplayControlRegister, OBJCharacterVRAMMappingMode);
     DECLARE_ENUM_VOLATILE_FLAG_OPS2(DisplayControlRegister, DisplayControlFlags);
 
+    enum class DisplayStatusRegister : u16
+    {
+        verticalBlank = 1 << 0,
+        horizontalBlank = 1 << 1,
+        verticalCounter = 1 << 2,
+        verticalBlankIRQEnable = 1 << 3,
+        horizontalBlankIRQEnable = 1 << 4,
+        verticalCounterIRQEnable = 1 << 5,
+        
+        verticalCounterSettingBitOffset = 8,
+        verticalCounterSettingMask = std::numeric_limits<u8>::max() << verticalCounterSettingBitOffset
+    };
+
+    enum class DisplayStatusFlags : u16
+    {
+        verticalBlank = 1 << 0,
+        horizontalBlank = 1 << 1,
+        verticalCounter = 1 << 2,
+        verticalBlankIRQEnable = 1 << 3,
+        horizontalBlankIRQEnable = 1 << 4,
+        verticalCounterIRQEnable = 1 << 5,
+    };
+        
+    DECLARE_ENUM_FLAG_OPS(DisplayStatusRegister);
+    DECLARE_ENUM_VOLATILE_FLAG_OPS(DisplayStatusRegister);
+
+    DECLARE_ENUM_FLAG_OPS(DisplayStatusFlags);
+    DECLARE_ENUM_VOLATILE_FLAG_OPS(DisplayStatusFlags);
+
+    DECLARE_ENUM_FLAG_OPS2(DisplayStatusRegister, DisplayStatusFlags);
+    DECLARE_ENUM_VOLATILE_FLAG_OPS2(DisplayStatusRegister, DisplayStatusFlags);
+    
     
     struct Display
     {
@@ -146,6 +179,16 @@ namespace cgba
         static volatile DisplayControlRegister& GetControlRegister()
         {
             return VolatileMemory<DisplayControlRegister>(display_control_register);
+        }
+
+        static volatile DisplayStatusRegister& GetStatusRegister()
+        {
+            return VolatileMemory<DisplayStatusRegister>(display_status_register);
+        }
+
+        static u16 GetVerticalCounter()
+        {
+            return VolatileMemory<u16>(vertical_counter_register) & std::numeric_limits<u8>::max();
         }
 
         template<class Ty>

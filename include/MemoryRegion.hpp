@@ -6,6 +6,8 @@ namespace cgba
 {
     constexpr uintptr io_registers = 0x0400'0000;
     constexpr uintptr display_control_register = 0x0400'0000;
+    constexpr uintptr display_status_register = 0x0400'0004;
+    constexpr uintptr vertical_counter_register = 0x0400'0006;
     constexpr uintptr background_pallettes = 0x0500'0000;
     constexpr uintptr object_pallettes = 0x0500'0200;
     constexpr uintptr vram = 0x0600'0000;
