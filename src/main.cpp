@@ -1,5 +1,6 @@
 #include "bn_core.h"
 #include "Display.hpp"
+#include "BackgroundView.hpp"
 
 int main()
 {
@@ -13,8 +14,10 @@ int main()
     cgba::Display::HideWindow1();
 
     // SetBackgroundMode<cgba::BackgroundMode0>();
-    auto& background = cgba::Display::SetBackgroundMode<cgba::BackgroundMode3>();
-    background.ShowBackground2();
+    auto& backgroundMode = cgba::Display::SetBackgroundMode<cgba::BackgroundMode3>();
+
+    auto background = backgroundMode.GetBackground2();
+    background.Show();
     // BN_ASSERT((cgba::GetDisplayControlStatus() & cgba::DisplayControlStatus::Background_Mode_Mask) == cgba::BackgroundMode3::modeValue);
     
     background.PlotPixel({120, 80}, {255, 0, 0});

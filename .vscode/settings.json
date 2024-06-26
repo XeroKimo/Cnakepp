@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "limits": "cpp"
+        "limits": "cpp",
+        "format": "cpp",
+        "type_traits": "cpp"
     }
 }

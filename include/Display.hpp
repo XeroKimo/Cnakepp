@@ -3,79 +3,11 @@
 #include "MemoryRegion.hpp"
 #include "Math.hpp"
 #include "EnumFlags.hpp"
+#include "VRAMFormats.hpp"
 #include <limits>
 
 namespace cgba
 {   
-    template<bool isVolatile>
-    struct RGB15TemplateData
-    {
-        u16 data;
-    };
-    
-    template<>
-    struct RGB15TemplateData<true>
-    {
-        volatile u16 data;
-    };
-
-    template<bool isVolatile>
-    class RGB15Template : private RGB15TemplateData<isVolatile>
-    {
-        static constexpr u16 subColorMask = 0b0000'0000'0001'1111;
-        static constexpr u16 u16RedBitShift = 0;
-        static constexpr u16 u16GreenBitShift = 5;
-        static constexpr u16 u16BlueBitShift = 10;
-
-        static constexpr u16 u16RedMask = subColorMask << u16RedBitShift;
-        static constexpr u16 u16GreenMask = subColorMask << u16GreenBitShift;
-        static constexpr u16 u16BlueMask = subColorMask << u16BlueBitShift;
-
-    private:
-        using RGB15TemplateData<isVolatile>::data;
-
-    public:
-        constexpr RGB15Template() = default;
-        
-        constexpr explicit RGB15Template(u16 color) : RGB15TemplateData<isVolatile>{ color }
-        {
-
-        } 
-
-        constexpr RGB15Template(u32 r, u32 g, u32 b) :
-            RGB15TemplateData<isVolatile>{ static_cast<u16>(static_cast<u16>(r) | (static_cast<u16>(g) << u16GreenBitShift) | (static_cast<u16>(b) << u16BlueBitShift)) }
-        {
-        }
-
-        constexpr void SetRed(u32 value) { SetValue(value, u16RedMask); }
-        constexpr void SetGreen(u32 value) { SetValue(value, u16GreenMask); }
-        constexpr void SetBlue(u32 value) { SetValue(value, u16BlueMask); }
-
-        constexpr u16 GetRed() const noexcept { return GetValue(u16RedMask, u16RedBitShift); }
-        constexpr u16 GetGreen() const noexcept { return GetValue(u16GreenMask, u16GreenBitShift); }
-        constexpr u16 GetBlue() const noexcept { return GetValue(u16BlueMask, u16BlueBitShift); }
-
-        constexpr u16 Data() const noexcept { return data;}
-        constexpr explicit operator u16() const noexcept { return data; }
-        constexpr operator RGB15Template<!isVolatile>() const noexcept { return RGB15Template<!isVolatile>{ data }; }
-
-    private:
-        constexpr void SetValue(u32 value, u16 colorMask)
-        {
-            data = (data & ~colorMask) | (value & colorMask);
-        }
-
-        constexpr u16 GetValue(u16 colorMask, u16 colorBitShift) const noexcept
-        {
-            return (data & colorMask) >> colorBitShift;
-        }
-    };
-
-    using RGB15 = RGB15Template<false>;
-    using VolatileRGB15 = RGB15Template<true>;
-
-    static_assert(std::is_trivially_copyable_v<RGB15>);
-    static_assert(sizeof(RGB15) == sizeof(u16) && alignof(RGB15) == alignof(u16));
 
 
     enum class DisplayControlRegister : u16
@@ -170,7 +102,7 @@ namespace cgba
     struct Display
     {
         static constexpr Rectangle resolution{ .width = 240, .height = 160 };
-        static constexpr i32 PointToIndex(Point position)
+        static constexpr i32 PointToIndex(Point<i32> position)
         {
             return position.x + position.y * resolution.width;
         }
@@ -207,6 +139,16 @@ namespace cgba
             ////TODO: Figure out a working assert that ensures access to this get backgorund mode matches the expected type
             //assert(GetControlRegister() & Ty::modeValue)
             return Ty::_dummy;
+        }
+
+        static void ShowBackground(i32 layer)
+        {
+            Display::SetDisplayControlFlags(static_cast<DisplayControlFlags>(static_cast<u16>(cgba::DisplayControlFlags::Background0_Visibility_Flag) << layer));
+        }
+
+        static void HideBackground(i32 layer)
+        {
+            Display::ResetDisplayControlFlags(static_cast<DisplayControlFlags>(static_cast<u16>(cgba::DisplayControlFlags::Background0_Visibility_Flag) << layer));
         }
 
         static void SetDisplayControlFlags(DisplayControlFlags flags)
@@ -332,6 +274,152 @@ namespace cgba
             ResetDisplayControlFlags(DisplayControlFlags::Display_OBJ_Window);
         }
     };
+    
+    static constexpr uintptr background_control_register_base_address = 0x0400'0008;
+    static constexpr uintptr background_scroll_offset_register_base_address = 0x0400'0010;
+    static constexpr uintptr background_rotation_scale_register_base_address = 0x0400'0020;
+    
+    struct BackgroundControlRegister
+    {
+        volatile u16 data;
+    };    
+    
+    struct BackgroundScrollRegister
+    {
+        volatile Point<i32> offset;
+    };
+
+    struct AffineTransform
+    {
+        Fixed<i16, 7> x; 
+        Fixed<i16, 7> dx; 
+        Fixed<i16, 7> y; 
+        Fixed<i16, 7> dy; 
+    };
+    
+    struct BackgroundTransformRegister
+    {
+        volatile AffineTransform transform; 
+        volatile Point<Fixed<i32, 7>> pivot; 
+    };
+
+    static_assert(sizeof(BackgroundTransformRegister) == 16);
+
+    struct Background3BitmapFormat
+    {
+        static constexpr uintptr frame_buffer_base_address = vram;
+        static constexpr Rectangle frame_buffer_size{ 240, 160 };
+        using ColorFormat = RGB15;
+        using PixelFormat = VolatileRGB15;
+
+        static constexpr i32 PositionToIndex(Point<i32> position) { return position.x + position.y * frame_buffer_size.width; }
+        static PixelFormat& PixelAt(Point<i32> position) { return (&Memory<PixelFormat>(frame_buffer_base_address))[PositionToIndex(position)]; }
+    };
+
+    struct Background4BitmapFormat
+    {
+        static constexpr uintptr frame_buffer_base_address = vram;
+        static constexpr Rectangle frame_buffer_size{ 240, 160 };
+        using ColorFormat = Pallette8;
+
+        //TODO: Make this a volatile Pallette8
+        //TODO: If this does unoptimal code gen, make this be some view class instead that is a wider type underneath and do
+        //bit operations manually
+        using PixelFormat = VolatileRGB15;
+        
+        static constexpr i32 PositionToIndex(Point<i32> position) { return position.x + position.y * frame_buffer_size.width; }
+        static PixelFormat& PixelAt(Point<i32> position) { return (&Memory<PixelFormat>(frame_buffer_base_address))[PositionToIndex(position)]; }
+    };
+    
+    struct Background5BitmapFormat
+    {
+        static constexpr uintptr frame_buffer_base_address = vram;
+        static constexpr Rectangle frame_buffer_size{ 160, 128 };
+        using ColorFormat = RGB15;
+        using PixelFormat = VolatileRGB15;
+        
+        static constexpr i32 PositionToIndex(Point<i32> position) { return position.x + position.y * frame_buffer_size.width; }
+        static PixelFormat& PixelAt(Point<i32> position) { return (&Memory<PixelFormat>(frame_buffer_base_address))[PositionToIndex(position)]; }
+    };
+
+    class TileBackgroundView
+    {
+    private:
+        i32 layer;
+
+    public:
+        constexpr TileBackgroundView(i32 inLayer) :
+            layer{inLayer}
+        {
+            
+        }
+
+    public:
+        void Show()
+        {
+            Display::ShowBackground(layer);
+        }
+
+        void Hide()
+        {
+            Display::HideBackground(layer);
+        }
+    };
+
+    class AffineTileBackgroundView
+    {
+    private:
+        i32 layer;
+
+    public:
+        constexpr AffineTileBackgroundView(i32 inLayer) :
+            layer{inLayer}
+        {
+            
+        }
+
+    public:
+        void Show()
+        {
+            Display::ShowBackground(layer);
+        }
+
+        void Hide()
+        {
+            Display::HideBackground(layer);
+        }
+
+    };
+
+    template<class Format>
+    class BitmapBackgroundView
+    {
+    private:
+        i32 layer;
+
+    public:
+        constexpr BitmapBackgroundView(i32 inLayer) :
+            layer{inLayer}
+        {
+            
+        }
+
+    public:
+        void Show()
+        {
+            Display::ShowBackground(layer);
+        }
+
+        void Hide()
+        {
+            Display::HideBackground(layer);
+        }
+
+        void PlotPixel(Point<i32> position, Format::ColorFormat color)
+        {
+            Format::PixelAt(position) = color;
+        }
+    };
 
     struct BackgroundMode0
     {
@@ -345,45 +433,10 @@ namespace cgba
 
         static BackgroundMode0 _dummy;
 
-        static void ShowBackground0() 
-        {
-            Display::ShowBackground0();
-        }
-
-        static void ShowBackground1() 
-        {
-            Display::ShowBackground1();
-        }
-
-        static void ShowBackground2() 
-        {
-            Display::ShowBackground2();
-        }
-
-        static void ShowBackground3() 
-        {
-            Display::ShowBackground3();
-        }
-        
-        static void HideBackground0() 
-        {
-            Display::HideBackground0();
-        }
-
-        static void HideBackground1() 
-        {
-            Display::HideBackground1();
-        }
-
-        static void HideBackground2() 
-        {
-            Display::HideBackground2();
-        }
-
-        static void HideBackground3() 
-        {
-            Display::HideBackground3();
-        }
+        static TileBackgroundView GetBackground0() { return TileBackgroundView{0}; }
+        static TileBackgroundView GetBackground1() { return TileBackgroundView{1}; }
+        static TileBackgroundView GetBackground2() { return TileBackgroundView{2}; }
+        static TileBackgroundView GetBackground3() { return TileBackgroundView{3}; }
         
     private:
         BackgroundMode0() = default;
@@ -401,36 +454,10 @@ namespace cgba
             | DisplayControlRegister::Background2_Visibility_Flag; 
 
         static BackgroundMode1 _dummy;
-            
-        static void ShowBackground0() 
-        {
-            Display::ShowBackground0();
-        }
 
-        static void ShowBackground1() 
-        {
-            Display::ShowBackground1();
-        }
-
-        static void ShowBackground2() 
-        {
-            Display::ShowBackground2();
-        }
-            
-        static void HideBackground0() 
-        {
-            Display::HideBackground0();
-        }
-
-        static void HideBackground1() 
-        {
-            Display::HideBackground1();
-        }
-
-        static void HideBackground2() 
-        {
-            Display::HideBackground2();
-        }
+        static TileBackgroundView GetBackground0() { return TileBackgroundView{0}; }
+        static TileBackgroundView GetBackground1() { return TileBackgroundView{1}; }
+        static AffineTileBackgroundView GetBackground2() { return AffineTileBackgroundView{2}; }
         
     private:
         BackgroundMode1() = default;
@@ -450,25 +477,8 @@ namespace cgba
         
         static BackgroundMode2 _dummy;
 
-        static void ShowBackground1() 
-        {
-            Display::ShowBackground1();
-        }
-
-        static void ShowBackground2() 
-        {
-            Display::ShowBackground2();
-        }
-
-        static void HideBackground1() 
-        {
-            Display::HideBackground1();
-        }
-
-        static void HideBackground2() 
-        {
-            Display::HideBackground2();
-        }
+        static AffineTileBackgroundView GetBackground2() { return AffineTileBackgroundView{2}; }
+        static AffineTileBackgroundView GetBackground3() { return AffineTileBackgroundView{3}; }
         
     private:
         BackgroundMode2() = default;
@@ -486,30 +496,7 @@ namespace cgba
         static constexpr bool scalingSupport = true;
         static BackgroundMode3 _dummy;
         
-        static void ShowBackground2() 
-        {
-            Display::ShowBackground2();
-        }
-        
-        static void HideBackground2() 
-        {
-            Display::HideBackground2();
-        }
-                
-        static RGB15* ScreenBuffer()
-        {
-            return &VRAM<RGB15>(0);
-        } 
-
-        static VolatileRGB15* VolatileScreenBuffer()
-        {
-            return &VRAM<VolatileRGB15>(0);
-        } 
-
-        static void PlotPixel(Point position, RGB15 color) 
-        {
-            VolatileScreenBuffer()[Display::PointToIndex(position)] = color;
-        }
+        static BitmapBackgroundView<Background3BitmapFormat> GetBackground2() { return {2}; }
         
     private:
         BackgroundMode3() = default;
@@ -527,15 +514,7 @@ namespace cgba
         static constexpr bool scalingSupport = true;
         static BackgroundMode4 _dummy;
 
-        static void ShowBackground2() 
-        {
-            Display::ShowBackground2();
-        }
-        
-        static void HideBackground2() 
-        {
-            Display::HideBackground2();
-        }
+        static BitmapBackgroundView<Background4BitmapFormat> GetBackground2() { return {2}; }
 
     private:
         BackgroundMode4() = default;
@@ -553,15 +532,7 @@ namespace cgba
         static constexpr bool scalingSupport = true;
         static BackgroundMode5 _dummy;
 
-        static void ShowBackground2() 
-        {
-            Display::ShowBackground2();
-        }
-        
-        static void HideBackground2() 
-        {
-            Display::HideBackground2();
-        }
+        static BitmapBackgroundView<Background5BitmapFormat> GetBackground2() { return {2}; }
 
     private:
         BackgroundMode5() = default;
