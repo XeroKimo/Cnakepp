@@ -82,4 +82,37 @@ namespace cgba
     {
         u8 index;
     };
+    
+    struct VolatilePallette8
+    {
+        volatile u8 index;
+
+        VolatilePallette8() = default;
+        VolatilePallette8(const Pallette8& v) :
+            index{v.index}
+        {   
+
+        }
+
+        operator Pallette8() const { return {index}; }
+    };
+
+    struct Tile4
+    {
+        u8 data[8 * 8 / 2];
+
+        constexpr Tile4() = default;
+        constexpr Tile4(u8 (&data)[8 * 8]);
+        constexpr Tile4(u8 (&data)[8 * 8 / 2]);
+    };
+
+    struct Tile8
+    {
+        u8 data[8 * 8];
+    };
+
+    struct BackgroundMapTile
+    {
+        u16 data;
+    };
 }

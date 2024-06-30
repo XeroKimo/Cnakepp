@@ -1,6 +1,5 @@
 #include "bn_core.h"
 #include "Display.hpp"
-#include "BackgroundView.hpp"
 
 int main()
 {
@@ -8,11 +7,15 @@ int main()
     bn::core::init();
     //Clear DisplayControlStatus for now as bn::core::init enables some of the stuff
     //making SetBackgroundMode not work as intended, without bn::core::init, force blank flag is enabled by default for some reason
-    //cgba::GetDisplayControlRegister() = {};
-    cgba::Display::HideObjectWindow();
-    cgba::Display::HideWindow0();
-    cgba::Display::HideWindow1();
-
+    cgba::Display::GetControlRegister().HideObjectWindow();
+    cgba::Display::GetControlRegister().HideWindow0();
+    cgba::Display::GetControlRegister().HideWindow1();
+    // cgba::Display::GetControlRegister() = cgba::DisplayControlRegister{};
+    // cgba::Display::HideObjectWindow();
+    // cgba::Display::HideWindow0();
+    // cgba::Display::HideWindow1();
+    
+    
     // SetBackgroundMode<cgba::BackgroundMode0>();
     auto& backgroundMode = cgba::Display::SetBackgroundMode<cgba::BackgroundMode3>();
 
