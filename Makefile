@@ -41,7 +41,9 @@ DMGAUDIO    	:=  dmg_audio
 ROMTITLE    	:=  CNAKEPP
 ROMCODE     	:=  SBTP
 USERFLAGS   	:=  
-USERCXXFLAGS	:=  -Wno-invalid-constexpr -Wno-useless-cast
+
+#Comment out Wno narrowing for final build as currently there are warnings that I can't fix atm which takes up a lot of terminal space, so it's currently used so if there are any errors, they'll be more visible
+USERCXXFLAGS	:=  -Wno-invalid-constexpr -Wno-useless-cast -Wno-narrowing
 USERASFLAGS 	:=  
 USERLDFLAGS 	:=  
 USERLIBDIRS 	:=  
