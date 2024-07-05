@@ -49,7 +49,7 @@ namespace cgba
 
     //Returns a reference to a memory location with the VRAM as it's base address
     //the offset will respect the alignment of the type passed in as a template parameter
-    template<integral_compatible<u16> Ty = u16>
+    template<integral_like Ty = u16>
     Ty& VRAM(uintptr offset)
     {
         return (&Memory<Ty>(vram))[offset];
@@ -79,7 +79,7 @@ namespace cgba
 
     //Returns a reference to a memory location with the VRAM as it's base address
     //the offset will respect the alignment of the type passed in as a template parameter
-    template<integral_compatible<u16> Ty = u16>
+    template<integral_like Ty = u16>
     volatile Ty& VolatileVRAM(uintptr offset)
     {
         return VRAM<Ty>(offset);

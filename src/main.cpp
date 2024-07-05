@@ -17,16 +17,40 @@ int main()
     
     
     // SetBackgroundMode<cgba::BackgroundMode0>();
-    auto& backgroundMode = cgba::Display::SetBackgroundMode<cgba::BackgroundMode3>();
+    auto& backgroundMode = cgba::Display::SetBackgroundMode<cgba::BackgroundMode0>();
 
-    auto background = backgroundMode.GetBackground2();
+    auto background = backgroundMode.GetBackground0();
     background.Show();
     // BN_ASSERT((cgba::GetDisplayControlStatus() & cgba::DisplayControlStatus::Background_Mode_Mask) == cgba::BackgroundMode3::modeValue);
+    background.SetScreenBaseBlock(0);
+    background.SetCharacterBaseBlock(1);
+    background.SetScreenSize(cgba::TextScreenSizeMode::W256_H256);
+    background.SetPalletteMode(cgba::PalletteMode::Color256_Palette1);
+    cgba::TextBackgroundTileDescription* screenBase0 = &cgba::VRAM<cgba::TextBackgroundTileDescription>(0);
+    cgba::TextBackgroundTileDescription* end =&cgba::VRAM<cgba::TextBackgroundTileDescription>(32 * 32);
+    for(; screenBase0 != end; screenBase0++)
+    {
+        screenBase0->SetTileNumber(0);
+        screenBase0->SetPalletteNumber(0);
+    }
+
+
     
-    background.PlotPixel({120, 80}, {255, 0, 0});
-    background.PlotPixel({136, 80}, {0, 255, 0});
-    background.PlotPixel({120, 96}, {0, 0, 255});
-        
+    cgba::Tile8& characterBase0 = reinterpret_cast<cgba::Tile8&>(cgba::VRAM<cgba::u8>(0x4000));
+    characterBase0.data =
+    {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 1, 0, 1, 1, 0,
+        0, 0, 1, 1, 0, 1, 1, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 1, 1, 0, 0, 0, 1, 1,
+        0, 0, 1, 1, 0, 1, 1, 0,
+        0, 0, 0, 1, 1, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    };
+    cgba::Memory<cgba::RGB15>(0x0500'0002) = cgba::RGB15(31, 31, 31);
+
+
     while(1)
     {
     }

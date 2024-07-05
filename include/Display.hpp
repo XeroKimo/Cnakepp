@@ -894,6 +894,7 @@ namespace cgba
     class TileBackgroundView : public CommonTileBackgroundView, 
         public TileBackgroundMixin<TileBackgroundView>
     {
+    public:
         void SetScreenSize(TextScreenSizeMode mode)
         {
             GetControlRegister().SetScreenSizeText(mode);
@@ -908,6 +909,7 @@ namespace cgba
     class AffineTileBackgroundView : public CommonTileBackgroundView, 
         public AffineBackgroundMixin<TileBackgroundView>
     {
+    public:
         void SetScreenSize(AffineScreenSizeMode mode)
         {
             GetControlRegister().SetScreenSizeAffine(mode);

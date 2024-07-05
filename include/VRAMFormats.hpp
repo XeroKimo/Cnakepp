@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include "Types.hpp"
 
 namespace cgba
@@ -99,16 +100,22 @@ namespace cgba
 
     struct Tile4
     {
-        u8 data[8 * 8 / 2];
+        std::array<u8, 8 * 8 / 2> data;
 
         constexpr Tile4() = default;
-        constexpr Tile4(u8 (&data)[8 * 8]);
-        constexpr Tile4(u8 (&data)[8 * 8 / 2]);
+
+        //TODO: Implement this
+        constexpr Tile4(const std::array<u8, 8 * 8>& _data);
+        constexpr Tile4(const std::array<u8, 8 * 8 / 2>& _data) :
+            data{ _data }
+        {
+            
+        }
     };
 
     struct Tile8
     {
-        u8 data[8 * 8];
+        std::array<u8, 8 * 8> data;
     };
 
     struct BackgroundMapTile
