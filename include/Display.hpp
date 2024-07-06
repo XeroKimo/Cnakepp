@@ -390,6 +390,8 @@ namespace cgba
     
     struct Display
     {
+        static constexpr Rectangle hardwareScreenSizePixels{ 240, 160 };
+
         static VolatileDisplayControlRegister& GetControlRegister()
         {
             return Memory<VolatileDisplayControlRegister>(display_control_register);

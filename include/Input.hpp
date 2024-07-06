@@ -1,6 +1,7 @@
 #pragma once
 #include "Types.hpp"
 #include "MemoryRegion.hpp"
+#include "EnumFlags.hpp"
 
 namespace cgba
 {
@@ -18,6 +19,8 @@ namespace cgba
         L= 1 << 9,
     };
 
+    
+    DECLARE_BIT_FLAG_OPS2(u16, Key);
     struct KeyInput
     {
         u16 data;
@@ -25,7 +28,7 @@ namespace cgba
 
     inline KeyInput PollInput()
     {
-        KeyInput input = Memory<KeyInput>(key_input_register);
+        KeyInput input = { VolatileMemory<u16>(key_input_register) };
         input.data = ~input.data;
         return input;
     }
