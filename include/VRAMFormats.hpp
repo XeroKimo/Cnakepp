@@ -8,19 +8,7 @@
 namespace cgba
 {
     template<bool isVolatile>
-    struct RGB15TemplateData
-    {
-        u16 data;
-    };
-    
-    template<>
-    struct RGB15TemplateData<true>
-    {
-        volatile u16 data;
-    };
-
-    template<bool isVolatile>
-    class RGB15Template : private RGB15TemplateData<isVolatile>
+    class RGB15Template
     {
         static constexpr u16 subColorMask = 0b0000'0000'0001'1111;
         static constexpr u16 u16RedBitShift = 0;
@@ -32,18 +20,18 @@ namespace cgba
         static constexpr u16 u16BlueMask = subColorMask << u16BlueBitShift;
 
     private:
-        using RGB15TemplateData<isVolatile>::data;
+        ConditionallyVolatile_T<u16, isVolatile> data;
 
     public:
         constexpr RGB15Template() = default;
         
-        constexpr explicit RGB15Template(u16 color) : RGB15TemplateData<isVolatile>{ color }
+        constexpr explicit RGB15Template(u16 color) : data{ color }
         {
 
         } 
 
         constexpr RGB15Template(u32 r, u32 g, u32 b) :
-            RGB15TemplateData<isVolatile>{ static_cast<u16>(static_cast<u16>(r) | (static_cast<u16>(g) << u16GreenBitShift) | (static_cast<u16>(b) << u16BlueBitShift)) }
+            data{ static_cast<u16>(static_cast<u16>(r) | (static_cast<u16>(g) << u16GreenBitShift) | (static_cast<u16>(b) << u16BlueBitShift)) }
         {
         }
 
@@ -77,66 +65,119 @@ namespace cgba
     static_assert(std::is_trivially_copyable_v<RGB15>);
     static_assert(sizeof(RGB15) == sizeof(u16) && alignof(RGB15) == alignof(u16));
         
-    struct Palette4Handle
+    enum class PaletteMode : u32
     {
-        u8 index;
+        //Have 16 Palettes with 16 colors each
+        Color16_Palette16 = 0,
+        
+        //Have 1 Palette with 256 colors
+        Color256_Palette1 = 1
     };
-       
-    struct Palette8Handle
-    {
-        u8 index;
-    };
-    
-    struct VolatilePalette8Handle
-    {
-        volatile u8 index;
 
-        VolatilePalette8Handle() = default;
-        VolatilePalette8Handle(const Palette8Handle& v) :
-            index{v.index}
-        {   
+    template<PaletteMode Mode, bool IsVolatile>
+    struct PaletteIndexTemplate
+    {
+        ConditionallyVolatile_T<u8, IsVolatile> index;
+        
+        operator PaletteIndexTemplate<Mode, !IsVolatile>() const { return {index}; }
+    };
+
+    using Palette16Index = PaletteIndexTemplate<PaletteMode::Color16_Palette16, false>;
+    using Palette256Index = PaletteIndexTemplate<PaletteMode::Color256_Palette1, false>;
+
+    using VolatilePalette16Index = PaletteIndexTemplate<PaletteMode::Color16_Palette16, true>;
+    using VolatilePalette256Index = PaletteIndexTemplate<PaletteMode::Color256_Palette1, true>;
+
+    
+    template<PaletteMode Mode>
+    class PaletteViewTemplate
+    {    
+    private:
+        VolatileRGB15* baseAddress;
+
+    public:
+        static PaletteViewTemplate MakeBackgroundView(Range<u32, 0, 15> paletteNumber) requires (Mode == PaletteMode::Color16_Palette16)
+        {
+            return { background_palettes, paletteNumber };
+        }
+        static PaletteViewTemplate MakeObjectView(Range<u32, 0, 15> paletteNumber) requires (Mode == PaletteMode::Color16_Palette16)
+        {
+            return { object_palettes, paletteNumber };
+        }
+        
+        static PaletteViewTemplate MakeBackgroundView() requires (Mode == PaletteMode::Color256_Palette1)
+        {
+            return { background_palettes };
+        }
+        static PaletteViewTemplate MakeObjectView() requires (Mode == PaletteMode::Color256_Palette1)
+        {
+            return { object_palettes };
+        }
+        VolatileRGB15& operator[](u32 index)
+        {
+            return baseAddress[index];
+        }
+
+    private:
+        PaletteViewTemplate(uintptr paletteAddress, Range<u32, 0, 15> paletteNumber) requires (Mode == PaletteMode::Color16_Palette16) :
+            baseAddress{ &Memory<VolatileRGB15>(paletteAddress + palette_block_increments * paletteNumber) }
+        {
 
         }
 
-        operator Palette8Handle() const { return {index}; }
+        PaletteViewTemplate(uintptr paletteAddress) requires (Mode == PaletteMode::Color256_Palette1) :
+            baseAddress{ &Memory<VolatileRGB15>(paletteAddress) }
+        {
+
+        }
     };
 
-    struct Tile4
-    {
-        std::array<u8, 8 * 8 / 2> data;
+    using PaletteView16 = PaletteViewTemplate<PaletteMode::Color16_Palette16>;
+    using PaletteView256 = PaletteViewTemplate<PaletteMode::Color256_Palette1>;
 
-        constexpr Tile4() = default;
+    template<PaletteMode Mode, bool IsVolatile>
+    struct CharacterTileTemplate;
+
+    template<bool IsVolatile>
+    struct CharacterTileTemplate<PaletteMode::Color16_Palette16, IsVolatile>
+    {
+        using PaletteIndex = PaletteIndexTemplate<PaletteMode::Color16_Palette16, IsVolatile>;
+        std::array<PaletteIndex, 8 * 8 / 2> data;
+
+        constexpr CharacterTileTemplate() = default;
 
         //TODO: Implement this
-        constexpr Tile4(const std::array<u8, 8 * 8>& _data);
-        constexpr Tile4(const std::array<u8, 8 * 8 / 2>& _data) :
+        constexpr CharacterTileTemplate(const std::array<Palette256Index, 8 * 8>& _data);
+        constexpr CharacterTileTemplate(const std::array<Palette16Index, 8 * 8 / 2>& _data) :
             data{ _data }
         {
             
         }
     };
 
-    struct Tile8
+    template<bool IsVolatile>
+    struct CharacterTileTemplate<PaletteMode::Color256_Palette1, IsVolatile>
     {
-        std::array<u8, 8 * 8> data;
+        using PaletteIndex = PaletteIndexTemplate<PaletteMode::Color256_Palette1, IsVolatile>;
+        std::array<PaletteIndex, 8 * 8> data;
     };
+    
 
-    struct BackgroundMapTile
-    {
-        u16 data;
-    };
+    using CharacterTile16 = CharacterTileTemplate<PaletteMode::Color16_Palette16, false>;
+    using CharacterTile256 = CharacterTileTemplate<PaletteMode::Color256_Palette1, false>;
 
-    constexpr uintptr character_block_increments = 0x4000;
-    class CharacterBlockView8
+    
+    template<PaletteMode Mode>
+    class CharacterBlockViewTemplate
     {
-        using tile_type = Tile8;
+        using tile_type = CharacterTileTemplate<Mode, true>;
 
     private:
         tile_type* baseAddress;
-
+        
     public:
-        CharacterBlockView8(Range<u32, 0, 3> baseBlock) :
-            baseAddress{ reinterpret_cast<tile_type*>(&VRAM<u8>(character_block_increments * baseBlock))}
+        CharacterBlockViewTemplate(Range<u32, 0, 3> baseBlock) :
+            baseAddress{ &Memory<tile_type>(vram + character_block_increments * baseBlock)}
         {
             
         }
@@ -147,14 +188,17 @@ namespace cgba
         }
     };
 
-    struct TextBackgroundTileDescription : PackedRegister<u16, false>
-    {
-        using PackedRegister<u16, false>::data;
+    using CharacterBlockView16 = CharacterBlockViewTemplate<PaletteMode::Color16_Palette16>;
+    using CharacterBlockView256 = CharacterBlockViewTemplate<PaletteMode::Color256_Palette1>;
 
+    struct TextBackgroundTileDescription
+    {
         using Tile_Number = u16PackedRegisterData<Range<u32, 0, 1023>, 10, 0>;
         using Flip_Horizontal = u16PackedRegisterData<WordBool, 1, 10>; 
         using Flip_Vertical = u16PackedRegisterData<WordBool, 1, 11>; 
         using Palette_Number = u16PackedRegisterData<Range<u32, 0, 15>, 4, 12>;
+                
+        ConditionallyVolatile_T<u16, false> data;
 
         constexpr TextBackgroundTileDescription() = default;
         constexpr TextBackgroundTileDescription(Tile_Number::type tileNumber, Flip_Horizontal::type flipHorizontal, Flip_Vertical::type flipVertical, Palette_Number::type Palette)
@@ -206,7 +250,6 @@ namespace cgba
         }
     };
 
-    constexpr uintptr screen_block_increments = 0x0800;
     class TextScreenBlockView
     {
     private:
@@ -216,32 +259,12 @@ namespace cgba
 
     public:
         TextScreenBlockView(Range<u32, 0, 31> baseBlock) :
-            baseAddress{ reinterpret_cast<description_type*>(&VRAM<u8>(screen_block_increments * baseBlock))}
+            baseAddress{ &Memory<description_type>(vram + screen_block_increments * baseBlock)}
         {
             
         }
         
         description_type& operator[](u32 index)
-        {
-            return baseAddress[index];
-        }
-    };
-
-    constexpr uintptr background_palettes_base_address = 0x0500'0000;
-    constexpr uintptr background_palettes_block_increments = sizeof(RGB15) * 16;
-    class BackgroundPaletteBlockView
-    {
-    private:
-        VolatileRGB15* baseAddress;
-
-    public:
-        BackgroundPaletteBlockView(Range<u32, 0, 15> baseBlock = 0) :
-            baseAddress{ &Memory<VolatileRGB15>(background_palettes_base_address + background_palettes_block_increments * baseBlock) }
-        {
-
-        }
-
-        VolatileRGB15& operator[](u32 index)
         {
             return baseAddress[index];
         }

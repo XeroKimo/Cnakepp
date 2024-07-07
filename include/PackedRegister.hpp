@@ -64,16 +64,4 @@ namespace cgba
     
     template<class IOType, auto MaskSize, auto MaskShift>
     using u16PackedRegisterData = PackedRegisterData<u16, IOType, MaskSize, MaskShift>;
-
-    template<class Ty, bool Volatile>
-    struct PackedRegister
-    {
-        Ty data {};
-    };
-
-    template<class Ty>
-    struct PackedRegister<Ty, true>
-    {
-        volatile Ty data {};
-    };
 }

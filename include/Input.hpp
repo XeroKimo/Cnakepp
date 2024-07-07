@@ -28,7 +28,7 @@ namespace cgba
 
     inline KeyInput PollInput()
     {
-        KeyInput input = { VolatileMemory<u16>(key_input_register) };
+        KeyInput input = { Memory<volatile u16>(key_input_register) };
         input.data = ~input.data;
         return input;
     }

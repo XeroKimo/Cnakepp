@@ -23,6 +23,22 @@ namespace cgba
     static_assert(sizeof(u8) == 1);
     
 
+    template<class Ty, bool IsVolatile>
+    struct ConditionallyVolatile
+    {
+        using Type = Ty;
+    };
+
+    template<class Ty>
+    struct ConditionallyVolatile<Ty, true>
+    {
+        using Type = volatile Ty;
+    };
+
+    template<class Ty, bool IsVolatile>
+    using ConditionallyVolatile_T = ConditionallyVolatile<Ty, IsVolatile>::Type;
+
+
     enum WordBool : u32
     {
         False,

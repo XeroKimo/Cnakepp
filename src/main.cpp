@@ -39,7 +39,7 @@ int main()
     background.SetScreenSize(cgba::TextScreenSizeMode::W256_H256);
     background.SetPaletteMode(cgba::PaletteMode::Color256_Palette1);
 
-    cgba::CharacterBlockView8 blockData{0};
+    cgba::CharacterBlockView256 blockData = background.GetCharacterBlockData();
     blockData[1].data =
     {
         0, 0, 0, 0, 0, 0, 0, 0,
@@ -52,13 +52,13 @@ int main()
         0, 0, 0, 0, 0, 0, 0, 0
     };
     
-    cgba::BackgroundPaletteBlockView paletteBlockView{0};
+    cgba::PaletteView256 paletteBlockView = background.GetPalette256();
     paletteBlockView[1] = cgba::RGB15(31, 31, 31);
 
     static constexpr cgba::u32 lastTile = cgba::Display::hardwareScreenSizePixels.width / 8 * cgba::Display::hardwareScreenSizePixels.height / 8;
     cgba::u32 currentTile = lastTile - 1;
 
-    cgba::TextScreenBlockView screenBlockView{1};
+    cgba::TextScreenBlockView screenBlockView = background.GetScreenBlockData();
     screenBlockView[currentTile].SetTileNumber(1);
     screenBlockView[currentTile].SetPaletteNumber(0);
 

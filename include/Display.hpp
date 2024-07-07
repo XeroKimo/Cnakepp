@@ -19,10 +19,8 @@ namespace cgba
     };
 
     template<bool Volatile>
-    struct DisplayControlRegisterTemplate : PackedRegister<u16, Volatile>
+    struct DisplayControlRegisterTemplate
     {        
-        using PackedRegister<u16, Volatile>::data;
-        
         using BackgroundMode = u16PackedRegisterData<Range<u32, 0, 3>, 3, 0>;
         using Display_Frame_Select = u16PackedRegisterData<Range<u32, 0, 1>, 1, 4>;
         using H_Blank_Interval_Free_Flag = u16PackedRegisterData<WordBool, 1, 5>;
@@ -37,9 +35,11 @@ namespace cgba
         using Display_Window1 = u16PackedRegisterData<WordBool, 1, 14>;
         using Display_OBJ_Window = u16PackedRegisterData<WordBool, 1, 15>;
 
+        ConditionallyVolatile_T<u16, Volatile> data;
+
         DisplayControlRegisterTemplate() = default;
         DisplayControlRegisterTemplate(const DisplayControlRegisterTemplate<!Volatile>& other) :
-            PackedRegister<u16, Volatile>{ other.data }
+            data{ other.data }
         {
             
         }
@@ -210,10 +210,8 @@ namespace cgba
     using VolatileDisplayControlRegister = DisplayControlRegisterTemplate<true>;
 
     template<bool Volatile>
-    struct DisplayStatusRegisterTemplate : PackedRegister<u16, Volatile>
+    struct DisplayStatusRegisterTemplate
     { 
-        using PackedRegister<u16, Volatile>::data;       
-        
         using Vertical_Blank_Flag = u16PackedRegisterData<WordBool, 1, 0>;
         using Horizontal_Blank_Flag = u16PackedRegisterData<WordBool, 1, 1>;
         using Vertical_Counter_Flag = u16PackedRegisterData<WordBool, 1, 2>;
@@ -221,6 +219,8 @@ namespace cgba
         using Enable_Horizontal_Blank_IRQ = u16PackedRegisterData<WordBool, 1, 4>;
         using Enable_Vertical_Counter_IRQ = u16PackedRegisterData<WordBool, 1, 5>;
         using Vertical_Count_Setting = u16PackedRegisterData<Range<u32, 0, 227>, 8, 8>;
+                
+        ConditionallyVolatile_T<u16, Volatile> data;
 
         Vertical_Blank_Flag::type IsVBlankFlagSet() const
         {
@@ -312,7 +312,7 @@ namespace cgba
 
         static u16 GetVerticalCounter()
         {
-            return VolatileMemory<u16>(vertical_counter_register) & std::numeric_limits<u8>::max();
+            return Memory<volatile u16>(vertical_counter_register) & std::numeric_limits<u8>::max();
         }
 
         template<class Ty>
@@ -333,21 +333,11 @@ namespace cgba
         }
     };
     
-    enum class PaletteMode : u32
-    {
-        //Have 16 Palettes with 16 colors each
-        Color16_Palette16 = 0,
-        
-        //Have 1 Palette with 256 colors
-        Color256_Palette1 = 1
-    };
-    
     enum class DisplayAreaOverflowMode : u32
     {
         Transparent = 0,
         Wrap_Around = 1
     };
-    
     
     enum class TextScreenSizeMode : u32
     {
@@ -463,11 +453,38 @@ namespace cgba
         using TileDescription = AffineBackgroundTileDescription;
     };
 
-    template<bool Volatile>
-    struct BackgroundControlRegisterTemplate : PackedRegister<u16, Volatile>
-    { 
-        using PackedRegister<u16, Volatile>::data;       
+    template<PaletteMode Mode>
+    struct PaletteModeToType;
+
+    template<>
+    struct PaletteModeToType<PaletteMode::Color16_Palette16>
+    {
+        using View = PaletteView16;
+        using CharacterTile = CharacterTile16;
+    };
         
+    template<>
+    struct PaletteModeToType<PaletteMode::Color256_Palette1>
+    {
+        using View = PaletteView256;
+        using CharacterTile = CharacterTile256;
+    };
+
+    template<TextScreenSizeMode Size, PaletteMode Palette>
+    struct StaticTextBackgroundConstants
+    {
+        using SizeConstants = ScreenSizeConstants<Size>;
+        
+        static constexpr Rectangle screenSizePixels = SizeConstants::screenSizePixels;
+        static constexpr Rectangle screenSizeTiles = SizeConstants::screenSizeTiles;
+        using TileDescription = SizeConstants::TileDescription;
+        using PaletteView = PaletteViewTemplate<Palette>;
+        using CharacterTile = CharacterTileTemplate<Palette, false>;
+    };
+
+    template<bool Volatile>
+    struct BackgroundControlRegisterTemplate 
+    { 
         using Priority = u16PackedRegisterData<Range<u32, 0, 3>, 2, 0>;
         using Character_Base_Block = u16PackedRegisterData<Range<u32, 0, 3>, 2, 2>;
         using Enable_Mosaic = u16PackedRegisterData<WordBool, 1, 6>;
@@ -476,6 +493,8 @@ namespace cgba
         using Display_Area_Overflow = u16PackedRegisterData<DisplayAreaOverflowMode, 1, 13>;
         using Screen_Size_Text = u16PackedRegisterData<TextScreenSizeMode, 2, 14>;
         using Screen_Size_Affine = u16PackedRegisterData<AffineScreenSizeMode, 2, 14>;
+
+        ConditionallyVolatile_T<u16, Volatile> data;
 
         void SetPriority(Priority::type value)
         {
@@ -566,10 +585,6 @@ namespace cgba
     using BackgroundControlRegister = BackgroundControlRegisterTemplate<false>;
     using VolatileBackgroundControlRegister = BackgroundControlRegisterTemplate<true>;
 
-    static constexpr uintptr background_control_register_base_address = 0x0400'0008;
-    static constexpr uintptr background_scroll_offset_register_base_address = 0x0400'0010;
-    static constexpr uintptr background_rotation_scale_register_base_address = 0x0400'0020;
-
 
     static_assert(sizeof(BackgroundControlRegister) == 2, "The docs says background control register is 2 bytes");
     
@@ -609,11 +624,11 @@ namespace cgba
     {
         static constexpr uintptr frame_buffer_base_address = vram;
         static constexpr Rectangle frame_buffer_size{ 240, 160 };
-        using ColorFormat = Palette8Handle;
+        using ColorFormat = Palette256Index;
 
         //TODO: If this does unoptimal code gen, make this be some view class instead that is a wider type underneath and do
         //bit operations manually
-        using PixelFormat = VolatilePalette8Handle;
+        using PixelFormat = VolatilePalette256Index;
         
         static constexpr i32 PositionToIndex(Point<i32> position) { return position.x + position.y * frame_buffer_size.width; }
         static PixelFormat& PixelAt(Point<i32> position) { return (&Memory<PixelFormat>(frame_buffer_base_address))[PositionToIndex(position)]; }
@@ -689,14 +704,17 @@ namespace cgba
         }
 
         i32 GetLayer() const { return layer; }
-    };
 
-    struct CommonTileBackgroundView : public CommonBackgroundView
-    {
-        static constexpr Rectangle tileSize{ 8, 8 };
-        static constexpr Rectangle mapMinSize{ 32, 32 };
-        static constexpr Rectangle mapMaxSize{ 64, 64 };
-
+        void SetDisplayOverflow(DisplayAreaOverflowMode mode)
+        {
+            GetControlRegister().SetDisplayOverflowMode(mode);
+        }
+        
+        DisplayAreaOverflowMode GetDisplayOverflow() const
+        {
+            return GetControlRegister().GetDisplayOverflowMode();
+        }
+        
         void SetCharacterBaseBlock(Range<u32, 0, 3> value)
         {
             GetControlRegister().SetCharacterBaseBlock(value);
@@ -726,24 +744,31 @@ namespace cgba
         {
             return GetControlRegister().GetScreenBaseBlock();
         }
+        
+        CharacterBlockView256 GetCharacterBlockData()
+        {
+            return CharacterBlockView256{ GetCharacterBaseBlock() };
+        }
+
+        PaletteView16 GetPalette16(Range<u32, 0, 15> palette)
+        {
+            return PaletteView16::MakeBackgroundView(palette);
+        }        
+        
+        PaletteView256 GetPalette256()
+        {
+            return PaletteView256::MakeBackgroundView();
+        }
     };
 
-    template<class Derived>
-    struct TileBackgroundMixin
-    {
-
-    };
-
-    template<class Derived>
-    struct AffineBackgroundMixin
-    {
-
-    };
-
-    class TileBackgroundView : public CommonTileBackgroundView, 
-        public TileBackgroundMixin<TileBackgroundView>
+    struct CommonTileBackgroundView : public CommonBackgroundView
     {
     public:
+        TextScreenBlockView GetScreenBlockData()
+        {
+            return TextScreenBlockView{ GetScreenBaseBlock() };
+        }
+        
         void SetScreenSize(TextScreenSizeMode mode)
         {
             GetControlRegister().SetScreenSizeText(mode);
@@ -753,10 +778,13 @@ namespace cgba
         {
             return GetControlRegister().GetScreenSizeText();
         }
+
+    private:
+        using CommonBackgroundView::SetDisplayOverflow;
+        using CommonBackgroundView::GetDisplayOverflow;
     };
 
-    class AffineTileBackgroundView : public CommonTileBackgroundView, 
-        public AffineBackgroundMixin<TileBackgroundView>
+    struct CommonTileAffineBackgroundView : public CommonBackgroundView
     {
     public:
         void SetScreenSize(AffineScreenSizeMode mode)
@@ -768,21 +796,20 @@ namespace cgba
         {
             return GetControlRegister().GetScreenSizeAffine();
         }
-
-        void SetDisplayOverflow(DisplayAreaOverflowMode mode)
-        {
-            GetControlRegister().SetDisplayOverflowMode(mode);
-        }
+        //TODO: Implement GetScreenBlockData
         
-        DisplayAreaOverflowMode GetDisplayOverflow() const
-        {
-            return GetControlRegister().GetDisplayOverflowMode();
-        }
+    };
+
+    class TileBackgroundView : public CommonTileBackgroundView
+    {
+    };
+
+    class AffineTileBackgroundView : public CommonTileBackgroundView
+    {
     };
 
     template<class Format>
-    class BitmapBackgroundView : public CommonBackgroundView, 
-        public AffineBackgroundMixin<BitmapBackgroundView<Format>>
+    class BitmapBackgroundView : public CommonBackgroundView
     {
     public:
 
