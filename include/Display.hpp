@@ -7,107 +7,15 @@
 #include <limits>
 #include <bit>
 #include "bn_assert.h"
+#include "PackedRegister.hpp"
 
 namespace cgba
 {   
-    template<std::integral MaskType, class IOType, MaskType MaskSize, MaskType MaskShift>
-        requires (MaskShift < sizeof(MaskType) * CHAR_BIT)
-    struct PackedRegisterData
-    {
-        using type = IOType;
-        static constexpr MaskType bitMask = (MaskSize == 1) ? 1 << MaskShift : ((1 << MaskSize) - 1) << MaskShift;
-        static constexpr MaskType negatedBitMask = static_cast<MaskType>(~bitMask);
-        static constexpr MaskType bitShift = MaskShift;
-
-        template<std::integral RegisterTy>
-            requires (sizeof(RegisterTy) == sizeof(MaskType))
-        static constexpr void Set(RegisterTy& _register) requires (MaskSize == 1)
-        {
-            _register |= bitMask;
-        }
-        
-        template<std::integral RegisterTy>
-            requires (sizeof(RegisterTy) == sizeof(MaskType))
-        static constexpr void Set(RegisterTy& _register, IOType value)
-        {
-            if constexpr(std::is_enum_v<IOType> && MaskSize == 1)
-            {
-                _register |= static_cast<std::underlying_type_t<IOType>>(value) << MaskShift;
-            }
-            else
-            {
-                Reset(_register);
-                if constexpr(std::is_enum_v<IOType>)
-                    _register |= static_cast<std::underlying_type_t<IOType>>(value) << MaskShift;
-                else
-                    _register |= value << MaskShift;
-            }
-        }
-
-        template<std::integral RegisterTy>
-            requires (sizeof(RegisterTy) == sizeof(MaskType))
-        static constexpr void Reset(RegisterTy& _register)
-        {
-            _register &= negatedBitMask;
-        }
-    
-        template<std::integral RegisterTy>
-            requires (sizeof(RegisterTy) == sizeof(MaskType))
-        static constexpr void Flip(RegisterTy& _register) requires (MaskSize == 1)
-        {
-            _register ^= bitMask;
-        }
-        
-        template<std::integral RegisterTy>
-            requires (sizeof(RegisterTy) == sizeof(MaskType))
-        static constexpr IOType Get(const RegisterTy& _register)
-        {
-            return IOType{ (_register & bitMask) >> bitShift };
-        }
-    };
-
-    //Min and Max are inclusive
-    template<class Ty, Ty Min, Ty Max>
-    struct Range
-    {
-        Ty value {};
-
-        constexpr Range(Ty _value) :
-            value{_value}
-        {
-            BN_ASSERT(_value >= Min && _value <= Max);
-        }
-
-        constexpr operator Ty() const { return value; }
-    };
-
-    static_assert(std::numeric_limits<float>::is_iec559);
-    
-    template<class IOType, auto MaskSize, auto MaskShift>
-    using u16PackedRegisterData = PackedRegisterData<u16, IOType, MaskSize, MaskShift>;
-
-    template<class Ty, bool Volatile>
-    struct PackedRegister
-    {
-        Ty data {};
-    };
-
-    template<class Ty>
-    struct PackedRegister<Ty, true>
-    {
-        volatile Ty data {};
-    };
 
     enum class OBJCharacterVRAMMappingMode : u32
     {
         TwoDimensional = 0,
         OneDimensional = 1//static_cast<u16>(DisplayControlFlags::OBJ_Character_VRAM_Mapping_Mode)
-    };
-
-    enum WordBool : u32
-    {
-        False,
-        True
     };
 
     template<bool Volatile>
@@ -425,21 +333,18 @@ namespace cgba
         }
     };
     
-    enum class PalletteMode : u32
+    enum class PaletteMode : u32
     {
-        //Have 16 pallettes with 16 colors each
+        //Have 16 Palettes with 16 colors each
         Color16_Palette16 = 0,
         
-        //Have 1 pallette with 256 colors
+        //Have 1 Palette with 256 colors
         Color256_Palette1 = 1
     };
     
     enum class DisplayAreaOverflowMode : u32
     {
-        //Have 16 pallettes with 16 colors each
         Transparent = 0,
-        
-        //Have 1 pallette with 256 colors
         Wrap_Around = 1
     };
     
@@ -478,64 +383,6 @@ namespace cgba
     struct ScreenSizeConstants;
 
 
-    struct TextBackgroundTileDescription : PackedRegister<u16, false>
-    {
-        using PackedRegister<u16, false>::data;
-
-        using Tile_Number = u16PackedRegisterData<Range<u32, 0, 1023>, 10, 0>;
-        using Flip_Horizontal = u16PackedRegisterData<WordBool, 1, 10>; 
-        using Flip_Vertical = u16PackedRegisterData<WordBool, 1, 11>; 
-        using Palette_Number = u16PackedRegisterData<Range<u32, 0, 15>, 4, 12>;
-
-        constexpr TextBackgroundTileDescription() = default;
-        constexpr TextBackgroundTileDescription(Tile_Number::type tileNumber, Flip_Horizontal::type flipHorizontal, Flip_Vertical::type flipVertical, Palette_Number::type pallette)
-        {
-            SetTileNumber(tileNumber);
-            Flip_Horizontal::Set(data, flipHorizontal);
-            Flip_Vertical::Set(data, flipVertical);
-            Palette_Number::Set(data, pallette);
-        }
-
-        constexpr void SetTileNumber(Tile_Number::type value)
-        {
-            Tile_Number::Set(data, value);
-        }
-
-        constexpr Tile_Number::type GetTileNumber() const
-        {
-            return Tile_Number::Get(data);
-        }
-                
-        constexpr void SetFlipHorizontal(Flip_Horizontal::type value)
-        {
-            Flip_Horizontal::Set(data, value);
-        }
-
-        constexpr Flip_Horizontal::type GetFlipHorizontal() const
-        {
-            return Flip_Horizontal::Get(data);
-        }
-                
-        constexpr void SetFlipVertical(Flip_Vertical::type value)
-        {
-            Flip_Vertical::Set(data, value);
-        }
-
-        constexpr Flip_Vertical::type GetFlipVertical() const
-        {
-            return Flip_Vertical::Get(data);
-        }
-                
-        constexpr void SetPalletteNumber(Palette_Number::type value)
-        {
-            Palette_Number::Set(data, value);
-        }
-
-        constexpr Palette_Number::type GetPalletteNumber() const
-        {
-            return Palette_Number::Get(data);
-        }
-    };
 
     struct AffineBackgroundTileDescription
     {
@@ -624,7 +471,7 @@ namespace cgba
         using Priority = u16PackedRegisterData<Range<u32, 0, 3>, 2, 0>;
         using Character_Base_Block = u16PackedRegisterData<Range<u32, 0, 3>, 2, 2>;
         using Enable_Mosaic = u16PackedRegisterData<WordBool, 1, 6>;
-        using Pallette_Mode = u16PackedRegisterData<PalletteMode, 1, 7>;
+        using Palette_Mode = u16PackedRegisterData<PaletteMode, 1, 7>;
         using Screen_Base_Block = u16PackedRegisterData<Range<u32, 0, 31>, 5, 8>;
         using Display_Area_Overflow = u16PackedRegisterData<DisplayAreaOverflowMode, 1, 13>;
         using Screen_Size_Text = u16PackedRegisterData<TextScreenSizeMode, 2, 14>;
@@ -665,14 +512,14 @@ namespace cgba
             return Enable_Mosaic::Get(data);
         }
         
-        void SetPalletteMode(Pallette_Mode::type value)
+        void SetPaletteMode(Palette_Mode::type value)
         {
-            Pallette_Mode::Set(data, value);
+            Palette_Mode::Set(data, value);
         }
 
-        Pallette_Mode::type GetPalletteMode() const
+        Palette_Mode::type GetPaletteMode() const
         {
-            return Pallette_Mode::Get(data);
+            return Palette_Mode::Get(data);
         }
         
         void SetScreenBaseBlock(Screen_Base_Block::type value)
@@ -762,11 +609,11 @@ namespace cgba
     {
         static constexpr uintptr frame_buffer_base_address = vram;
         static constexpr Rectangle frame_buffer_size{ 240, 160 };
-        using ColorFormat = Pallette8;
+        using ColorFormat = Palette8Handle;
 
         //TODO: If this does unoptimal code gen, make this be some view class instead that is a wider type underneath and do
         //bit operations manually
-        using PixelFormat = VolatilePallette8;
+        using PixelFormat = VolatilePalette8Handle;
         
         static constexpr i32 PositionToIndex(Point<i32> position) { return position.x + position.y * frame_buffer_size.width; }
         static PixelFormat& PixelAt(Point<i32> position) { return (&Memory<PixelFormat>(frame_buffer_base_address))[PositionToIndex(position)]; }
@@ -860,14 +707,14 @@ namespace cgba
             return GetControlRegister().GetCharacterBaseBlock();
         }
         
-        void SetPalletteMode(PalletteMode mode)
+        void SetPaletteMode(PaletteMode mode)
         {
-            GetControlRegister().SetPalletteMode(mode);
+            GetControlRegister().SetPaletteMode(mode);
         }
         
-        PalletteMode GetPalletteMode() const
+        PaletteMode GetPaletteMode() const
         {
-            return GetControlRegister().GetPalletteMode();
+            return GetControlRegister().GetPaletteMode();
         }
         
         void SetScreenBaseBlock(Range<u32,0, 31> value)

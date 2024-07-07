@@ -21,4 +21,11 @@ namespace cgba
     static_assert(sizeof(u16) == 2);
     static_assert(sizeof(i8) == 1);
     static_assert(sizeof(u8) == 1);
+    
+
+    enum WordBool : u32
+    {
+        False,
+        True
+    };
 };

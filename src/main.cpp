@@ -34,15 +34,13 @@ int main()
     auto background = backgroundMode.GetBackground0();
     background.Show();
     // BN_ASSERT((cgba::GetDisplayControlStatus() & cgba::DisplayControlStatus::Background_Mode_Mask) == cgba::BackgroundMode3::modeValue);
-    background.SetScreenBaseBlock(0);
-    background.SetCharacterBaseBlock(1);
+    background.SetScreenBaseBlock(1);
+    background.SetCharacterBaseBlock(0);
     background.SetScreenSize(cgba::TextScreenSizeMode::W256_H256);
-    background.SetPalletteMode(cgba::PalletteMode::Color256_Palette1);
+    background.SetPaletteMode(cgba::PaletteMode::Color256_Palette1);
 
-
-    
-    cgba::Tile8& characterBase0 = reinterpret_cast<cgba::Tile8&>(cgba::VRAM<cgba::u8>(0x4000 + sizeof(cgba::Tile8)));
-    characterBase0.data =
+    cgba::CharacterBlockView8 blockData{0};
+    blockData[1].data =
     {
         0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 1, 0, 1, 1, 0,
@@ -53,19 +51,16 @@ int main()
         0, 0, 0, 1, 1, 1, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0
     };
-    cgba::Memory<cgba::RGB15>(0x0500'0002) = cgba::RGB15(31, 31, 31);
+    
+    cgba::BackgroundPaletteBlockView paletteBlockView{0};
+    paletteBlockView[1] = cgba::RGB15(31, 31, 31);
 
-    cgba::TextBackgroundTileDescription* screenBase0 = &cgba::VRAM<cgba::TextBackgroundTileDescription>(0);
-    // cgba::TextBackgroundTileDescription* end =&cgba::VRAM<cgba::TextBackgroundTileDescription>(32 * 32);
-    // for(; screenBase0 != end; screenBase0++)
-    // {
-    //     screenBase0->SetTileNumber(0);
-    //     screenBase0->SetPalletteNumber(0);
-    // }
     static constexpr cgba::u32 lastTile = cgba::Display::hardwareScreenSizePixels.width / 8 * cgba::Display::hardwareScreenSizePixels.height / 8;
     cgba::u32 currentTile = lastTile - 1;
-    screenBase0[currentTile].SetTileNumber(1);
-    screenBase0[currentTile].SetPalletteNumber(0);
+
+    cgba::TextScreenBlockView screenBlockView{1};
+    screenBlockView[currentTile].SetTileNumber(1);
+    screenBlockView[currentTile].SetPaletteNumber(0);
 
     cgba::KeyInput lastInput = cgba::PollInput();
     while(1)
@@ -74,15 +69,15 @@ int main()
 
         if(currentInput.data & cgba::Key::Right && (lastInput.data & cgba::Key::Right) == 0)
         {
-            screenBase0[currentTile].SetTileNumber(0);
-            screenBase0[currentTile].SetPalletteNumber(0);
+            screenBlockView[currentTile].SetTileNumber(0);
+            screenBlockView[currentTile].SetPaletteNumber(0);
             currentTile++;
 
             if(currentTile >= lastTile)
                 currentTile = 0;
             
-            screenBase0[currentTile].SetTileNumber(1);
-            screenBase0[currentTile].SetPalletteNumber(0);
+            screenBlockView[currentTile].SetTileNumber(1);
+            screenBlockView[currentTile].SetPaletteNumber(0);
         }
 
         lastInput = currentInput;

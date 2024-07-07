@@ -3,6 +3,7 @@
 #include <concepts>
 #include <climits>
 #include <limits>
+#include "bn_assert.h"
 
 namespace cgba
 {
@@ -27,5 +28,21 @@ namespace cgba
     struct Fixed
     {
         Ty data;
+    };
+    
+
+    //Min and Max are inclusive
+    template<class Ty, Ty Min, Ty Max>
+    struct Range
+    {
+        Ty value {};
+
+        constexpr Range(Ty _value) :
+            value{_value}
+        {
+            BN_ASSERT(_value >= Min && _value <= Max);
+        }
+
+        constexpr operator Ty() const { return value; }
     };
 }

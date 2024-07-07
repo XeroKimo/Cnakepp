@@ -9,8 +9,8 @@ namespace cgba
     constexpr uintptr display_status_register = 0x0400'0004;
     constexpr uintptr vertical_counter_register = 0x0400'0006;
     constexpr uintptr key_input_register = 0x0400'0130;
-    constexpr uintptr background_pallettes = 0x0500'0000;
-    constexpr uintptr object_pallettes = 0x0500'0200;
+    constexpr uintptr background_Palettes = 0x0500'0000;
+    constexpr uintptr object_Palettes = 0x0500'0200;
     constexpr uintptr vram = 0x0600'0000;
 
     template<class Ty, class Ty2>
@@ -31,20 +31,20 @@ namespace cgba
         return *reinterpret_cast<Ty*>(location);
     }
 
-    //Returns a reference to a memory location with the background pallette as it's base address
+    //Returns a reference to a memory location with the background Palette as it's base address
     //the offset will respect the alignment of the type passed in as a template parameter
     template<integral_like Ty>
-    Ty& BackgroundPallettes(uintptr offset)
+    Ty& BackgroundPalettes(uintptr offset)
     {
-        return (&Memory<Ty>(background_pallettes))[offset];
+        return (&Memory<Ty>(background_Palettes))[offset];
     }
 
-    //Returns a reference to a memory location with the object pallette as it's base address
+    //Returns a reference to a memory location with the object Palette as it's base address
     //the offset will respect the alignment of the type passed in as a template parameter
     template<integral_like Ty>
-    Ty& ObjectPallettes(uintptr offset)
+    Ty& ObjectPalettes(uintptr offset)
     {
-        return (&Memory<Ty>(object_pallettes))[offset];
+        return (&Memory<Ty>(object_Palettes))[offset];
     }
 
     //Returns a reference to a memory location with the VRAM as it's base address
@@ -61,20 +61,20 @@ namespace cgba
         return Memory<Ty>(location);
     }
 
-    //Returns a reference to a memory location with the background pallette as it's base address
+    //Returns a reference to a memory location with the background Palette as it's base address
     //the offset will respect the alignment of the type passed in as a template parameter
     template<integral_like Ty>
-    volatile Ty& VolatileBackgroundPallettes(uintptr offset)
+    volatile Ty& VolatileBackgroundPalettes(uintptr offset)
     {
-        return BackgroundPallettes<Ty>(offset);
+        return BackgroundPalettes<Ty>(offset);
     }
 
-    //Returns a reference to a memory location with the object pallette as it's base address
+    //Returns a reference to a memory location with the object Palette as it's base address
     //the offset will respect the alignment of the type passed in as a template parameter
     template<integral_like Ty>
-    volatile Ty& VolatileObjectPallettes(uintptr offset)
+    volatile Ty& VolatileObjectPalettes(uintptr offset)
     {
-        return ObjectPallettes<Ty>(offset);
+        return ObjectPalettes<Ty>(offset);
     }
 
     //Returns a reference to a memory location with the VRAM as it's base address

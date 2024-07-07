@@ -1,6 +1,9 @@
 #pragma once
 #include <array>
+#include "Math.hpp"
 #include "Types.hpp"
+#include "MemoryRegion.hpp"
+#include "PackedRegister.hpp"
 
 namespace cgba
 {
@@ -74,28 +77,28 @@ namespace cgba
     static_assert(std::is_trivially_copyable_v<RGB15>);
     static_assert(sizeof(RGB15) == sizeof(u16) && alignof(RGB15) == alignof(u16));
         
-    struct Pallette4
+    struct Palette4Handle
     {
         u8 index;
     };
        
-    struct Pallette8
+    struct Palette8Handle
     {
         u8 index;
     };
     
-    struct VolatilePallette8
+    struct VolatilePalette8Handle
     {
         volatile u8 index;
 
-        VolatilePallette8() = default;
-        VolatilePallette8(const Pallette8& v) :
+        VolatilePalette8Handle() = default;
+        VolatilePalette8Handle(const Palette8Handle& v) :
             index{v.index}
         {   
 
         }
 
-        operator Pallette8() const { return {index}; }
+        operator Palette8Handle() const { return {index}; }
     };
 
     struct Tile4
@@ -121,5 +124,126 @@ namespace cgba
     struct BackgroundMapTile
     {
         u16 data;
+    };
+
+    constexpr uintptr character_block_increments = 0x4000;
+    class CharacterBlockView8
+    {
+        using tile_type = Tile8;
+
+    private:
+        tile_type* baseAddress;
+
+    public:
+        CharacterBlockView8(Range<u32, 0, 3> baseBlock) :
+            baseAddress{ reinterpret_cast<tile_type*>(&VRAM<u8>(character_block_increments * baseBlock))}
+        {
+            
+        }
+
+        tile_type& operator[](u32 index)
+        {
+            return baseAddress[index];
+        }
+    };
+
+    struct TextBackgroundTileDescription : PackedRegister<u16, false>
+    {
+        using PackedRegister<u16, false>::data;
+
+        using Tile_Number = u16PackedRegisterData<Range<u32, 0, 1023>, 10, 0>;
+        using Flip_Horizontal = u16PackedRegisterData<WordBool, 1, 10>; 
+        using Flip_Vertical = u16PackedRegisterData<WordBool, 1, 11>; 
+        using Palette_Number = u16PackedRegisterData<Range<u32, 0, 15>, 4, 12>;
+
+        constexpr TextBackgroundTileDescription() = default;
+        constexpr TextBackgroundTileDescription(Tile_Number::type tileNumber, Flip_Horizontal::type flipHorizontal, Flip_Vertical::type flipVertical, Palette_Number::type Palette)
+        {
+            SetTileNumber(tileNumber);
+            Flip_Horizontal::Set(data, flipHorizontal);
+            Flip_Vertical::Set(data, flipVertical);
+            Palette_Number::Set(data, Palette);
+        }
+
+        constexpr void SetTileNumber(Tile_Number::type value)
+        {
+            Tile_Number::Set(data, value);
+        }
+
+        constexpr Tile_Number::type GetTileNumber() const
+        {
+            return Tile_Number::Get(data);
+        }
+                
+        constexpr void SetFlipHorizontal(Flip_Horizontal::type value)
+        {
+            Flip_Horizontal::Set(data, value);
+        }
+
+        constexpr Flip_Horizontal::type GetFlipHorizontal() const
+        {
+            return Flip_Horizontal::Get(data);
+        }
+                
+        constexpr void SetFlipVertical(Flip_Vertical::type value)
+        {
+            Flip_Vertical::Set(data, value);
+        }
+
+        constexpr Flip_Vertical::type GetFlipVertical() const
+        {
+            return Flip_Vertical::Get(data);
+        }
+                
+        constexpr void SetPaletteNumber(Palette_Number::type value)
+        {
+            Palette_Number::Set(data, value);
+        }
+
+        constexpr Palette_Number::type GetPaletteNumber() const
+        {
+            return Palette_Number::Get(data);
+        }
+    };
+
+    constexpr uintptr screen_block_increments = 0x0800;
+    class TextScreenBlockView
+    {
+    private:
+        using description_type = TextBackgroundTileDescription;
+
+        description_type* baseAddress;
+
+    public:
+        TextScreenBlockView(Range<u32, 0, 31> baseBlock) :
+            baseAddress{ reinterpret_cast<description_type*>(&VRAM<u8>(screen_block_increments * baseBlock))}
+        {
+            
+        }
+        
+        description_type& operator[](u32 index)
+        {
+            return baseAddress[index];
+        }
+    };
+
+    constexpr uintptr background_palettes_base_address = 0x0500'0000;
+    constexpr uintptr background_palettes_block_increments = sizeof(RGB15) * 16;
+    class BackgroundPaletteBlockView
+    {
+    private:
+        VolatileRGB15* baseAddress;
+
+    public:
+        BackgroundPaletteBlockView(Range<u32, 0, 15> baseBlock = 0) :
+            baseAddress{ &Memory<VolatileRGB15>(background_palettes_base_address + background_palettes_block_increments * baseBlock) }
+        {
+
+        }
+
+        VolatileRGB15& operator[](u32 index)
+        {
+            return baseAddress[index];
+        }
     };
 }
