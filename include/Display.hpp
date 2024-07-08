@@ -745,7 +745,12 @@ namespace cgba
             return GetControlRegister().GetScreenBaseBlock();
         }
         
-        CharacterBlockView256 GetCharacterBlockData()
+        CharacterBlockView16 GetCharacterBlockData16()
+        {
+            return CharacterBlockView16{ GetCharacterBaseBlock() };
+        }
+        
+        CharacterBlockView256 GetCharacterBlockData256()
         {
             return CharacterBlockView256{ GetCharacterBaseBlock() };
         }

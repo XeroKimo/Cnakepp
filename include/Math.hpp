@@ -12,6 +12,18 @@ namespace cgba
     {
         Ty x;
         Ty y;
+
+        friend constexpr Point& operator+=(Point& lh, const Point& rh)
+        {
+            lh.x += rh.x;
+            lh.y += rh.y;
+            return lh;
+        }
+        
+        friend constexpr Point operator+(Point lh, const Point& rh)
+        {
+            return lh += rh;
+        }
     };
 
     struct Rectangle

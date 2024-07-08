@@ -23,6 +23,85 @@ void BadPresent()
     waitForVBlank();
 }
 
+struct Snake
+{
+    static constexpr cgba::u32 moveDelay = 8; 
+
+    cgba::u32 currentMaxSize = 20;
+    cgba::u32 currentSize = 1;
+    cgba::u32 moveDelayCounter = 0;
+    cgba::Point<cgba::u16> tailPosition{};
+    cgba::Point<cgba::u16> headPosition{};
+    cgba::Point<cgba::u16> direction{ 1, 0 };
+    cgba::Point<cgba::u16> lastInputDirection{ 0, 0 };
+
+    bool playGame = true;
+
+    std::array<cgba::Point<cgba::u16>, cgba::Display::hardwareScreenSizePixels.width / 8 * cgba::Display::hardwareScreenSizePixels.height / 8> directionCloud;
+
+    Snake(cgba::TextScreenBlockView& screenBlock)
+    {
+        screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
+        screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+    }
+
+    cgba::u32 PointToCloudIndex(cgba::Point<cgba::u16> point)
+    {
+        return point.x + point.y * (cgba::Display::hardwareScreenSizePixels.width / 8);
+    }
+
+    cgba::u32 PointToScreenIndex(cgba::Point<cgba::u16> point)
+    {
+        return point.x + point.y * (cgba::ScreenSizeConstants<cgba::TextScreenSizeMode::W256_H256>::screenSizeTiles.width);
+    }
+
+    void Update(cgba::TextScreenBlockView& screenBlock)
+    {
+        if(!playGame)
+            return;
+
+        if(moveDelayCounter == moveDelay)
+        {
+            moveDelayCounter = 0;
+
+            if((lastInputDirection.x != 0 && direction.y != 0) || (lastInputDirection.y != 0 && direction.x != 0))
+            {
+                direction = lastInputDirection;
+            }
+            lastInputDirection = {};
+            
+            directionCloud[PointToCloudIndex(headPosition)] = direction;
+
+            //Keep a trail
+            screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
+            screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+            
+            if(currentSize < currentMaxSize)
+            {
+                currentSize++;
+            }
+            else
+            {
+                auto oldTailPosition = tailPosition;
+                screenBlock[PointToScreenIndex(tailPosition)].SetTileNumber(0);
+                screenBlock[PointToScreenIndex(tailPosition)].SetPaletteNumber(0);
+
+                tailPosition += directionCloud[PointToCloudIndex(tailPosition)];
+                directionCloud[PointToCloudIndex(oldTailPosition)] = {};
+            }
+
+            headPosition += direction;
+            screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
+            screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+            if(directionCloud[PointToCloudIndex(headPosition)].x != 0 || directionCloud[PointToCloudIndex(headPosition)].y != 0)
+            {
+                playGame = false;
+            }
+        }
+        moveDelayCounter++;
+    }
+};
+
 int main()
 {
     //For now use bncore to get access to the assert
@@ -49,36 +128,25 @@ int main()
     background.SetScreenSize(cgba::TextScreenSizeMode::W256_H256);
     background.SetPaletteMode(cgba::PaletteMode::Color256_Palette1);
 
-    cgba::CharacterBlockView256 blockData = background.GetCharacterBlockData();
+    cgba::CharacterBlockView256 blockData = background.GetCharacterBlockData256();
     blockData[1].data =
     {
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 1, 1, 0, 1, 1, 0,
-        0, 0, 1, 1, 0, 1, 1, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 1, 0, 0, 0, 1, 1,
-        0, 0, 1, 1, 0, 1, 1, 0,
-        0, 0, 0, 1, 1, 1, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1
     };
     
     cgba::PaletteView256 paletteBlockView = background.GetPalette256();
     paletteBlockView[1] = cgba::RGB15(31, 31, 31);
-
-    static constexpr cgba::u16 lastVisibleX = cgba::Display::hardwareScreenSizePixels.width / 8;
-    static constexpr cgba::u16 lastVisibleY = cgba::Display::hardwareScreenSizePixels.height / 8;
     
-    cgba::Clamped<cgba::u16, 0, lastVisibleX> currentTileX{ 0 };
-    cgba::Clamped<cgba::u16, 0, lastVisibleY> currentTileY{ 0 };
-    cgba::u16 cachedCurrentTile = 0;
-    auto updateCachedCurrentTile = [&cachedCurrentTile, &currentTileX, &currentTileY]
-    {
-        cachedCurrentTile = currentTileX.value + cgba::ScreenSizeConstants<cgba::TextScreenSizeMode::W256_H256>::screenSizeTiles.width * currentTileY;
-    };
-
     cgba::TextScreenBlockView screenBlockView = background.GetScreenBlockData();
-    screenBlockView[cachedCurrentTile].SetTileNumber(1);
-    screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+    Snake snake{ screenBlockView };
+    
 
     cgba::KeyInput lastInput = cgba::PollInput();
     while(1)
@@ -87,62 +155,29 @@ int main()
 
         if(currentInput.data & cgba::Key::Right && (lastInput.data & cgba::Key::Right) == 0)
         {
-            screenBlockView[cachedCurrentTile].SetTileNumber(0);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
-
-            currentTileX += 1;
-            updateCachedCurrentTile();
-            
-            screenBlockView[cachedCurrentTile].SetTileNumber(1);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+            snake.lastInputDirection.x = 1;
         }
 
-        if(currentInput.data & cgba::Key::Left && (lastInput.data & cgba::Key::Left) == 0)
+        else if(currentInput.data & cgba::Key::Left && (lastInput.data & cgba::Key::Left) == 0)
         {
-            screenBlockView[cachedCurrentTile].SetTileNumber(0);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
-
-            currentTileX += -1;
-            updateCachedCurrentTile();
-            
-            screenBlockView[cachedCurrentTile].SetTileNumber(1);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+            snake.lastInputDirection.x = -1;
         }
         
 
-        if(currentInput.data & cgba::Key::Down && (lastInput.data & cgba::Key::Down) == 0)
+        else if(currentInput.data & cgba::Key::Down && (lastInput.data & cgba::Key::Down) == 0)
         {
-            screenBlockView[cachedCurrentTile].SetTileNumber(0);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
-
-            currentTileY += 1;
-            updateCachedCurrentTile();
-            
-            screenBlockView[cachedCurrentTile].SetTileNumber(1);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+            snake.lastInputDirection.y = 1;
         }
 
-        if(currentInput.data & cgba::Key::Up && (lastInput.data & cgba::Key::Up) == 0)
+        else if(currentInput.data & cgba::Key::Up && (lastInput.data & cgba::Key::Up) == 0)
         {
-            screenBlockView[cachedCurrentTile].SetTileNumber(0);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
-
-            currentTileY += -1;
-            updateCachedCurrentTile();
-            
-            screenBlockView[cachedCurrentTile].SetTileNumber(1);
-            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+            snake.lastInputDirection.y = -1;
         }
+        snake.Update(screenBlockView);
 
         lastInput = currentInput;
         BadPresent();
     }
 
     return 0;
-    // bn::core::init();
-
-    // while(true)
-    // {
-    //     bn::core::update();
-    // }
 }
