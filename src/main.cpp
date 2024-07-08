@@ -3,14 +3,24 @@
 #include "Input.hpp"
 void BadPresent()
 {
-    while(cgba::Display::GetVerticalCounter() >= 160)
+    auto completeVBlank = []
     {
+        while(cgba::Display::GetVerticalCounter() >= 160)
+        {
 
-    }
-    while(cgba::Display::GetVerticalCounter() < 160)
+        }
+    };
+
+    auto waitForVBlank = []
     {
+        while(cgba::Display::GetVerticalCounter() < 160)
+        {
 
-    }
+        }
+    };
+
+    completeVBlank();
+    waitForVBlank();
 }
 
 int main()
@@ -55,12 +65,20 @@ int main()
     cgba::PaletteView256 paletteBlockView = background.GetPalette256();
     paletteBlockView[1] = cgba::RGB15(31, 31, 31);
 
-    static constexpr cgba::u32 lastTile = cgba::Display::hardwareScreenSizePixels.width / 8 * cgba::Display::hardwareScreenSizePixels.height / 8;
-    cgba::u32 currentTile = lastTile - 1;
+    static constexpr cgba::u16 lastVisibleX = cgba::Display::hardwareScreenSizePixels.width / 8;
+    static constexpr cgba::u16 lastVisibleY = cgba::Display::hardwareScreenSizePixels.height / 8;
+    
+    cgba::Clamped<cgba::u16, 0, lastVisibleX> currentTileX{ 0 };
+    cgba::Clamped<cgba::u16, 0, lastVisibleY> currentTileY{ 0 };
+    cgba::u16 cachedCurrentTile = 0;
+    auto updateCachedCurrentTile = [&cachedCurrentTile, &currentTileX, &currentTileY]
+    {
+        cachedCurrentTile = currentTileX.value + cgba::ScreenSizeConstants<cgba::TextScreenSizeMode::W256_H256>::screenSizeTiles.width * currentTileY;
+    };
 
     cgba::TextScreenBlockView screenBlockView = background.GetScreenBlockData();
-    screenBlockView[currentTile].SetTileNumber(1);
-    screenBlockView[currentTile].SetPaletteNumber(0);
+    screenBlockView[cachedCurrentTile].SetTileNumber(1);
+    screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
 
     cgba::KeyInput lastInput = cgba::PollInput();
     while(1)
@@ -69,15 +87,51 @@ int main()
 
         if(currentInput.data & cgba::Key::Right && (lastInput.data & cgba::Key::Right) == 0)
         {
-            screenBlockView[currentTile].SetTileNumber(0);
-            screenBlockView[currentTile].SetPaletteNumber(0);
-            currentTile++;
+            screenBlockView[cachedCurrentTile].SetTileNumber(0);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
 
-            if(currentTile >= lastTile)
-                currentTile = 0;
+            currentTileX += 1;
+            updateCachedCurrentTile();
             
-            screenBlockView[currentTile].SetTileNumber(1);
-            screenBlockView[currentTile].SetPaletteNumber(0);
+            screenBlockView[cachedCurrentTile].SetTileNumber(1);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+        }
+
+        if(currentInput.data & cgba::Key::Left && (lastInput.data & cgba::Key::Left) == 0)
+        {
+            screenBlockView[cachedCurrentTile].SetTileNumber(0);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+
+            currentTileX += -1;
+            updateCachedCurrentTile();
+            
+            screenBlockView[cachedCurrentTile].SetTileNumber(1);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+        }
+        
+
+        if(currentInput.data & cgba::Key::Down && (lastInput.data & cgba::Key::Down) == 0)
+        {
+            screenBlockView[cachedCurrentTile].SetTileNumber(0);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+
+            currentTileY += 1;
+            updateCachedCurrentTile();
+            
+            screenBlockView[cachedCurrentTile].SetTileNumber(1);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+        }
+
+        if(currentInput.data & cgba::Key::Up && (lastInput.data & cgba::Key::Up) == 0)
+        {
+            screenBlockView[cachedCurrentTile].SetTileNumber(0);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
+
+            currentTileY += -1;
+            updateCachedCurrentTile();
+            
+            screenBlockView[cachedCurrentTile].SetTileNumber(1);
+            screenBlockView[cachedCurrentTile].SetPaletteNumber(0);
         }
 
         lastInput = currentInput;

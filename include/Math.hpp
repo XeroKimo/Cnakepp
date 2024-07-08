@@ -45,4 +45,40 @@ namespace cgba
 
         constexpr operator Ty() const { return value; }
     };
+    
+    //Min and Max are inclusive
+    template<class Ty, Ty Min, Ty Max>
+    struct Clamped
+    {
+        Ty value {};
+
+        constexpr Clamped(Ty _value) :
+            value{_value}
+        {
+            Clamp();
+        }
+
+        friend constexpr Clamped operator+(Clamped lh, Ty rh)
+        {
+            return lh += rh;
+        }
+        
+
+        friend constexpr Clamped& operator+=(Clamped& lh, Ty rh)
+        {
+            lh.value += rh;
+            return lh;
+        }
+
+        constexpr operator Ty() const { return value; }
+
+    private:
+        void Clamp()
+        {
+            if(value < Min)
+                value = Min;
+            else if(value > Max)
+                value = Max;
+        }
+    };
 }
