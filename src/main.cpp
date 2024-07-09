@@ -27,13 +27,15 @@ struct Snake
 {
     static constexpr cgba::u32 moveDelay = 8; 
 
-    cgba::u32 currentMaxSize = 20;
+    cgba::u32 currentMaxSize = 2;
     cgba::u32 currentSize = 1;
     cgba::u32 moveDelayCounter = 0;
     cgba::Point<cgba::u16> tailPosition{};
     cgba::Point<cgba::u16> headPosition{};
     cgba::Point<cgba::u16> direction{ 1, 0 };
     cgba::Point<cgba::u16> lastInputDirection{ 0, 0 };
+    
+    cgba::Point<cgba::u16> applePosition{ 15, 10 };
 
     bool playGame = true;
 
@@ -43,6 +45,10 @@ struct Snake
     {
         screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
         screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+        
+                
+        screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(2);
+        screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
     }
 
     cgba::u32 PointToCloudIndex(cgba::Point<cgba::u16> point)
@@ -70,11 +76,36 @@ struct Snake
             }
             lastInputDirection = {};
             
+            const auto nextHeadPosition = headPosition + direction;
+            
+            if(directionCloud[PointToCloudIndex(headPosition)].x != 0 || directionCloud[PointToCloudIndex(headPosition)].y != 0)
+            {
+                playGame = false;
+                return;
+            }
+
+            
             directionCloud[PointToCloudIndex(headPosition)] = direction;
 
             //Keep a trail
-            screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
-            screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+            if(headPosition != applePosition)
+            {
+                screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
+                screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+            }
+
+            if(nextHeadPosition == applePosition)
+            {
+                currentMaxSize += 2;
+                
+                screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(0);
+                screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
+
+                //Randomize apple position
+                
+                screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(2);
+                screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
+            }
             
             if(currentSize < currentMaxSize)
             {
@@ -83,16 +114,23 @@ struct Snake
             else
             {
                 auto oldTailPosition = tailPosition;
-                screenBlock[PointToScreenIndex(tailPosition)].SetTileNumber(0);
-                screenBlock[PointToScreenIndex(tailPosition)].SetPaletteNumber(0);
+                
+                if(tailPosition != applePosition)
+                {
+                    screenBlock[PointToScreenIndex(tailPosition)].SetTileNumber(0);
+                    screenBlock[PointToScreenIndex(tailPosition)].SetPaletteNumber(0);
+                }
 
                 tailPosition += directionCloud[PointToCloudIndex(tailPosition)];
                 directionCloud[PointToCloudIndex(oldTailPosition)] = {};
             }
 
-            headPosition += direction;
-            screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
-            screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+            headPosition = nextHeadPosition;
+            if(headPosition != applePosition)
+            {
+                screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
+                screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
+            }
             if(directionCloud[PointToCloudIndex(headPosition)].x != 0 || directionCloud[PointToCloudIndex(headPosition)].y != 0)
             {
                 playGame = false;
@@ -140,9 +178,21 @@ int main()
         1, 1, 1, 1, 1, 1, 1, 1,
         1, 1, 1, 1, 1, 1, 1, 1
     };
+    blockData[2].data =
+    {
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2
+    };
     
     cgba::PaletteView256 paletteBlockView = background.GetPalette256();
     paletteBlockView[1] = cgba::RGB15(31, 31, 31);
+    paletteBlockView[2] = cgba::RGB15(31, 0, 0);
     
     cgba::TextScreenBlockView screenBlockView = background.GetScreenBlockData();
     Snake snake{ screenBlockView };
@@ -156,21 +206,25 @@ int main()
         if(currentInput.data & cgba::Key::Right && (lastInput.data & cgba::Key::Right) == 0)
         {
             snake.lastInputDirection.x = 1;
+            snake.lastInputDirection.y = 0;
         }
 
         else if(currentInput.data & cgba::Key::Left && (lastInput.data & cgba::Key::Left) == 0)
         {
             snake.lastInputDirection.x = -1;
+            snake.lastInputDirection.y = 0;
         }
         
 
         else if(currentInput.data & cgba::Key::Down && (lastInput.data & cgba::Key::Down) == 0)
         {
+            snake.lastInputDirection.x = 0;
             snake.lastInputDirection.y = 1;
         }
 
         else if(currentInput.data & cgba::Key::Up && (lastInput.data & cgba::Key::Up) == 0)
         {
+            snake.lastInputDirection.x = 0;
             snake.lastInputDirection.y = -1;
         }
         snake.Update(screenBlockView);

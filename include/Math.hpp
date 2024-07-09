@@ -13,6 +13,8 @@ namespace cgba
         Ty x;
         Ty y;
 
+        friend constexpr bool operator==(const Point& lh, const Point& rh) = default;
+
         friend constexpr Point& operator+=(Point& lh, const Point& rh)
         {
             lh.x += rh.x;
