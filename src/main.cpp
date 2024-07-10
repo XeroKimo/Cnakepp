@@ -1,6 +1,10 @@
 #include "bn_core.h"
 #include "Display.hpp"
 #include "Input.hpp"
+#include <bn_random.h>
+
+bn::random defaultRandomGenerator;
+//TODO: Refactor some of this stuff out as we confirm the game is working
 void BadPresent()
 {
     auto completeVBlank = []
@@ -25,40 +29,50 @@ void BadPresent()
 
 struct Snake
 {
-    static constexpr cgba::u32 moveDelay = 8; 
+    static constexpr cgba::u32 moveDelay = 5; 
+    static constexpr cgba::u32 sizeIncrease = 2; 
 
-    cgba::u32 currentMaxSize = 2;
+    cgba::u32 currentMaxSize = 4;
     cgba::u32 currentSize = 1;
     cgba::u32 moveDelayCounter = 0;
-    cgba::Point<cgba::u16> tailPosition{};
-    cgba::Point<cgba::u16> headPosition{};
-    cgba::Point<cgba::u16> direction{ 1, 0 };
-    cgba::Point<cgba::u16> lastInputDirection{ 0, 0 };
+    cgba::Point<cgba::i16> tailPosition;
+    cgba::Point<cgba::i16> headPosition{ 7, 10 };
+    cgba::Point<cgba::i16> direction{ 1, 0 };
+    cgba::Point<cgba::i16> lastInputDirection{ 0, 0 };
     
-    cgba::Point<cgba::u16> applePosition{ 15, 10 };
+    cgba::Point<cgba::i16> applePosition{ 15, 10 };
 
     bool playGame = true;
 
-    std::array<cgba::Point<cgba::u16>, cgba::Display::hardwareScreenSizePixels.width / 8 * cgba::Display::hardwareScreenSizePixels.height / 8> directionCloud;
+    std::array<cgba::Point<cgba::i16>, cgba::Display::hardwareScreenSizePixels.width / 8 * cgba::Display::hardwareScreenSizePixels.height / 8> directionCloud = {};
 
     Snake(cgba::TextScreenBlockView& screenBlock)
     {
+        tailPosition = headPosition;
         screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
         screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
         
-                
         screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(2);
         screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
     }
 
-    cgba::u32 PointToCloudIndex(cgba::Point<cgba::u16> point)
+    cgba::u32 PointToCloudIndex(cgba::Point<cgba::i16> point)
     {
         return point.x + point.y * (cgba::Display::hardwareScreenSizePixels.width / 8);
     }
 
-    cgba::u32 PointToScreenIndex(cgba::Point<cgba::u16> point)
+    cgba::u32 PointToScreenIndex(cgba::Point<cgba::i16> point)
     {
         return point.x + point.y * (cgba::ScreenSizeConstants<cgba::TextScreenSizeMode::W256_H256>::screenSizeTiles.width);
+    }
+
+    void RandomizeApplePosition(cgba::TextScreenBlockView& screenBlock)
+    {
+        applePosition.x = defaultRandomGenerator.get_unbiased_int(cgba::Display::hardwareScreenSizePixels.width / 8);
+        applePosition.y = defaultRandomGenerator.get_unbiased_int(cgba::Display::hardwareScreenSizePixels.height / 8);
+        
+        screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(2);
+        screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
     }
 
     void Update(cgba::TextScreenBlockView& screenBlock)
@@ -77,8 +91,10 @@ struct Snake
             lastInputDirection = {};
             
             const auto nextHeadPosition = headPosition + direction;
-            
-            if(directionCloud[PointToCloudIndex(headPosition)].x != 0 || directionCloud[PointToCloudIndex(headPosition)].y != 0)
+         
+            if((directionCloud[PointToCloudIndex(nextHeadPosition)].x != 0 || directionCloud[PointToCloudIndex(nextHeadPosition)].y != 0)
+                || (nextHeadPosition.x < 0 || nextHeadPosition.x >=  cgba::Display::hardwareScreenSizePixels.width / 8)
+                || (nextHeadPosition.y < 0 || nextHeadPosition.y >=  cgba::Display::hardwareScreenSizePixels.height / 8))
             {
                 playGame = false;
                 return;
@@ -93,18 +109,15 @@ struct Snake
                 screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
                 screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
             }
-
+            
             if(nextHeadPosition == applePosition)
             {
-                currentMaxSize += 2;
+                currentMaxSize += sizeIncrease;
                 
                 screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(0);
                 screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
 
-                //Randomize apple position
-                
-                screenBlock[PointToScreenIndex(applePosition)].SetTileNumber(2);
-                screenBlock[PointToScreenIndex(applePosition)].SetPaletteNumber(0);
+                RandomizeApplePosition(screenBlock);
             }
             
             if(currentSize < currentMaxSize)
@@ -130,10 +143,6 @@ struct Snake
             {
                 screenBlock[PointToScreenIndex(headPosition)].SetTileNumber(1);
                 screenBlock[PointToScreenIndex(headPosition)].SetPaletteNumber(0);
-            }
-            if(directionCloud[PointToCloudIndex(headPosition)].x != 0 || directionCloud[PointToCloudIndex(headPosition)].y != 0)
-            {
-                playGame = false;
             }
         }
         moveDelayCounter++;
@@ -167,6 +176,17 @@ int main()
     background.SetPaletteMode(cgba::PaletteMode::Color256_Palette1);
 
     cgba::CharacterBlockView256 blockData = background.GetCharacterBlockData256();
+    blockData[0].data =
+    {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    };
     blockData[1].data =
     {
         1, 1, 1, 1, 1, 1, 1, 1,
@@ -195,42 +215,60 @@ int main()
     paletteBlockView[2] = cgba::RGB15(31, 0, 0);
     
     cgba::TextScreenBlockView screenBlockView = background.GetScreenBlockData();
-    Snake snake{ screenBlockView };
     
+    auto ClearScreen = [](cgba::TextScreenBlockView view, cgba::u32 tileNumber)
+    {
+        for(cgba::u32 i = 0; i < cgba::ScreenSizeConstants<cgba::TextScreenSizeMode::W256_H256>::screenSizeTiles.width * cgba::ScreenSizeConstants<cgba::TextScreenSizeMode::W256_H256>::screenSizeTiles.height; i++)
+        {
+            view[i].SetTileNumber(tileNumber);
+        }
+    };
 
     cgba::KeyInput lastInput = cgba::PollInput();
     while(1)
     {
-        cgba::KeyInput currentInput = cgba::PollInput();
+        ClearScreen(screenBlockView, 0);
 
-        if(currentInput.data & cgba::Key::Right && (lastInput.data & cgba::Key::Right) == 0)
-        {
-            snake.lastInputDirection.x = 1;
-            snake.lastInputDirection.y = 0;
-        }
-
-        else if(currentInput.data & cgba::Key::Left && (lastInput.data & cgba::Key::Left) == 0)
-        {
-            snake.lastInputDirection.x = -1;
-            snake.lastInputDirection.y = 0;
-        }
+        Snake snake{ screenBlockView };
         
-
-        else if(currentInput.data & cgba::Key::Down && (lastInput.data & cgba::Key::Down) == 0)
+        while(true)
         {
-            snake.lastInputDirection.x = 0;
-            snake.lastInputDirection.y = 1;
-        }
+            cgba::KeyInput currentInput = cgba::PollInput();
 
-        else if(currentInput.data & cgba::Key::Up && (lastInput.data & cgba::Key::Up) == 0)
-        {
-            snake.lastInputDirection.x = 0;
-            snake.lastInputDirection.y = -1;
-        }
-        snake.Update(screenBlockView);
+            if(snake.playGame == false && currentInput.data & cgba::Key::A && (lastInput.data & cgba::Key::A) == 0)
+            {
+                break;
+            }
 
-        lastInput = currentInput;
-        BadPresent();
+            if(currentInput.data & cgba::Key::Right && (lastInput.data & cgba::Key::Right) == 0)
+            {
+                snake.lastInputDirection.x = 1;
+                snake.lastInputDirection.y = 0;
+            }
+
+            else if(currentInput.data & cgba::Key::Left && (lastInput.data & cgba::Key::Left) == 0)
+            {
+                snake.lastInputDirection.x = -1;
+                snake.lastInputDirection.y = 0;
+            }
+            
+
+            else if(currentInput.data & cgba::Key::Down && (lastInput.data & cgba::Key::Down) == 0)
+            {
+                snake.lastInputDirection.x = 0;
+                snake.lastInputDirection.y = 1;
+            }
+
+            else if(currentInput.data & cgba::Key::Up && (lastInput.data & cgba::Key::Up) == 0)
+            {
+                snake.lastInputDirection.x = 0;
+                snake.lastInputDirection.y = -1;
+            }
+            snake.Update(screenBlockView);
+
+            lastInput = currentInput;
+            BadPresent();
+        }
     }
 
     return 0;
