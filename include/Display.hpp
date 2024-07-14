@@ -338,137 +338,6 @@ namespace cgba
         Transparent = 0,
         Wrap_Around = 1
     };
-    
-    enum class TextScreenSizeMode : u32
-    {
-        //256x256 pixel, supporting up to 32x32 tiles
-        W256_H256 = 0,
-        
-        //512x256 pixels, supporting up to 64x32 tiles
-        W512_H256 = 1,
-
-        //256x512 pixels, supporting up to 32x64 tiles
-        W256_H512 = 2,
-
-        //512x512 pixels, supporting up to 64x64 tiles
-        W512_H512 = 3
-    };
-    
-    enum class AffineScreenSizeMode : u32
-    {
-        //128x128 pixel, supporting up to 16x16 tiles
-        W128_H128 = 0,
-        
-        //256x256 pixels, supporting up to 32x32 tiles
-        W256_H256 = 1,
-
-        //512x512 pixels, supporting up to 64x64 tiles
-        W512_H512 = 2,
-
-        //1024x1024 pixels, supporting up to 128x128 tiles
-        W1024_H1024 = 3
-    };
-
-    template<auto Mode>
-    struct ScreenSizeConstants;
-
-
-
-    struct AffineBackgroundTileDescription
-    {
-        u8 tileNumber;
-                
-        constexpr void SetTileNumber(Range<u32, 0, std::numeric_limits<u8>::max()> value)
-        {
-            tileNumber = static_cast<u8>(value);
-        }
-
-        constexpr Range<u32, 0, std::numeric_limits<u8>::max()> GetTileNumber() const
-        {
-            return tileNumber;
-        }
-    };
-
-    template<>
-    struct ScreenSizeConstants<TextScreenSizeMode::W256_H256>
-    {
-        static constexpr Rectangle screenSizePixels{ 256, 256 };
-        static constexpr Rectangle screenSizeTiles{ 32, 32 };
-        using TileDescription = TextBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<TextScreenSizeMode::W512_H256>
-    {
-        static constexpr Rectangle screenSizePixels{ 512, 256 };
-        static constexpr Rectangle screenSizeTiles{ 64, 32 };
-        using TileDescription = TextBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<TextScreenSizeMode::W256_H512>
-    {
-        static constexpr Rectangle screenSizePixels{ 256, 512 };
-        static constexpr Rectangle screenSizeTiles{ 32, 64 };
-        using TileDescription = TextBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<TextScreenSizeMode::W512_H512>
-    {
-        static constexpr Rectangle screenSizePixels{ 512, 512 };
-        static constexpr Rectangle screenSizeTiles{ 64, 64 };
-        using TileDescription = TextBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<AffineScreenSizeMode::W128_H128>
-    {
-        static constexpr Rectangle screenSizePixels{ 256, 256 };
-        static constexpr Rectangle screenSizeTiles{ 16, 16 };
-        using TileDescription = AffineBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<AffineScreenSizeMode::W256_H256>
-    {
-        static constexpr Rectangle screenSizePixels{ 512, 256 };
-        static constexpr Rectangle screenSizeTiles{ 32, 32 };
-        using TileDescription = AffineBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<AffineScreenSizeMode::W512_H512>
-    {
-        static constexpr Rectangle screenSizePixels{ 256, 512 };
-        static constexpr Rectangle screenSizeTiles{ 64, 64 };
-        using TileDescription = AffineBackgroundTileDescription;
-    };
-
-    template<>
-    struct ScreenSizeConstants<AffineScreenSizeMode::W1024_H1024>
-    {
-        static constexpr Rectangle screenSizePixels{ 1024, 1024 };
-        static constexpr Rectangle screenSizeTiles{ 128, 128 };
-        using TileDescription = AffineBackgroundTileDescription;
-    };
-
-    template<PaletteMode Mode>
-    struct PaletteModeToType;
-
-    template<>
-    struct PaletteModeToType<PaletteMode::Color16_Palette16>
-    {
-        using View = PaletteView16;
-        using CharacterTile = CharacterTile16;
-    };
-        
-    template<>
-    struct PaletteModeToType<PaletteMode::Color256_Palette1>
-    {
-        using View = PaletteView256;
-        using CharacterTile = CharacterTile256;
-    };
 
     template<TextScreenSizeMode Size, PaletteMode Palette>
     struct StaticTextBackgroundConstants
@@ -495,6 +364,13 @@ namespace cgba
         using Screen_Size_Affine = u16PackedRegisterData<AffineScreenSizeMode, 2, 14>;
 
         ConditionallyVolatile_T<u16, Volatile> data;
+
+        BackgroundControlRegisterTemplate() = default;
+        BackgroundControlRegisterTemplate(const BackgroundControlRegisterTemplate<!Volatile>& other) :
+            data{ other.data }
+        {
+            
+        }
 
         void SetPriority(Priority::type value)
         {
@@ -809,6 +685,31 @@ namespace cgba
     {
     };
 
+    template<TextScreenSizeMode SizeMode, PaletteMode Palette>
+    struct StaticTileBackgroundView : public CommonTileBackgroundView
+    {
+
+    public:
+        constexpr Rectangle GetPixelScreenSize() const { return StaticTextBackgroundConstants<SizeMode, Palette>::screenSizePixels; }
+        constexpr Rectangle GetTileScreenSize() const { return StaticTextBackgroundConstants<SizeMode, Palette>::screenSizeTiles; }
+        
+        StaticTextScreenBlockView<SizeMode> GetScreenBlockData() { return StaticTextScreenBlockView<SizeMode>{ GetScreenBaseBlock() }; }
+        PaletteView16 GetPalette(Range<u32, 0, 15> palette) requires (Palette == PaletteMode::Color16_Palette16) { return PaletteView16::MakeBackgroundView(palette); }
+        PaletteView256 GetPalette() requires (Palette == PaletteMode::Color256_Palette1) { return PaletteView256::MakeBackgroundView(); }
+
+        CharacterBlockView16 GetCharacterBlockData() requires (Palette == PaletteMode::Color16_Palette16) { return CharacterBlockView16{ GetCharacterBaseBlock() }; }
+        CharacterBlockView256 GetCharacterBlockData() requires (Palette == PaletteMode::Color256_Palette1) { return CharacterBlockView256{ GetCharacterBaseBlock() }; }
+
+    private:
+        using CommonTileBackgroundView::GetScreenBlockData;
+        using CommonTileBackgroundView::SetScreenSize;
+        using CommonTileBackgroundView::GetScreenSize;
+        using CommonBackgroundView::GetPalette16;
+        using CommonBackgroundView::GetPalette256;
+        using CommonBackgroundView::GetCharacterBlockData16;
+        using CommonBackgroundView::GetCharacterBlockData256;
+    };
+
     class AffineTileBackgroundView : public CommonTileBackgroundView
     {
     };
@@ -841,6 +742,46 @@ namespace cgba
         static TileBackgroundView GetBackground1() { return TileBackgroundView{1}; }
         static TileBackgroundView GetBackground2() { return TileBackgroundView{2}; }
         static TileBackgroundView GetBackground3() { return TileBackgroundView{3}; }
+        
+        template<TextScreenSizeMode SizeMode, PaletteMode Palette>
+        static StaticTileBackgroundView<SizeMode, Palette> MakeStaticBackground0()
+        {
+            BackgroundControlRegister reg =  GetBackground0().GetControlRegister();
+            reg.SetScreenSizeText(SizeMode);
+            reg.SetPaletteMode(Palette);
+            GetBackground0().GetControlRegister() = reg;
+            return StaticTileBackgroundView<SizeMode, Palette>{0};
+        }
+        
+        template<TextScreenSizeMode SizeMode, PaletteMode Palette>
+        static StaticTileBackgroundView<SizeMode, Palette> MakeStaticBackground1()
+        {
+            BackgroundControlRegister reg =  GetBackground1().GetControlRegister();
+            reg.SetScreenSizeText(SizeMode);
+            reg.SetPaletteMode(Palette);
+            GetBackground1().GetControlRegister() = reg;
+            return StaticTileBackgroundView<SizeMode, Palette>{1};
+        }
+        
+        template<TextScreenSizeMode SizeMode, PaletteMode Palette>
+        static StaticTileBackgroundView<SizeMode, Palette> MakeStaticBackground2()
+        {
+            BackgroundControlRegister reg =  GetBackground2().GetControlRegister();
+            reg.SetScreenSizeText(SizeMode);
+            reg.SetPaletteMode(Palette);
+            GetBackground2().GetControlRegister() = reg;
+            return StaticTileBackgroundView<SizeMode, Palette>{2};
+        }
+        
+        template<TextScreenSizeMode SizeMode, PaletteMode Palette>
+        static StaticTileBackgroundView<SizeMode, Palette> MakeStaticBackground3()
+        {
+            BackgroundControlRegister reg =  GetBackground3().GetControlRegister();
+            reg.SetScreenSizeText(SizeMode);
+            reg.SetPaletteMode(Palette);
+            GetBackground3().GetControlRegister() = reg;
+            return StaticTileBackgroundView<SizeMode, Palette>{3};
+        }
         
     private:
         BackgroundMode0() = default;
@@ -950,4 +891,27 @@ namespace cgba
         BackgroundMode5& operator=(const BackgroundMode5&) = delete;
         BackgroundMode5& operator=(BackgroundMode5&&) = delete;
     };
+
+    
+    inline void BadPresent()
+    {
+        auto completeVBlank = []
+        {
+            while(cgba::Display::GetVerticalCounter() >= 160)
+            {
+
+            }
+        };
+
+        auto waitForVBlank = []
+        {
+            while(cgba::Display::GetVerticalCounter() < 160)
+            {
+
+            }
+        };
+
+        completeVBlank();
+        waitForVBlank();
+    }
 }

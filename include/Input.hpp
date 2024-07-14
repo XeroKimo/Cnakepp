@@ -32,4 +32,18 @@ namespace cgba
         input.data = ~input.data;
         return input;
     }
+
+    class BasicController
+    {
+    private:
+        KeyInput previous{};
+        KeyInput current{};
+
+    public:
+        void Poll();
+
+        WordBool Pressed(Key key) const;
+        WordBool Held(Key key) const;
+        WordBool Released(Key key) const;
+    };
 }

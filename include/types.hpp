@@ -38,10 +38,5 @@ namespace cgba
     template<class Ty, bool IsVolatile>
     using ConditionallyVolatile_T = ConditionallyVolatile<Ty, IsVolatile>::Type;
 
-
-    enum WordBool : u32
-    {
-        False,
-        True
-    };
+    using WordBool = u32;
 };

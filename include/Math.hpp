@@ -26,13 +26,32 @@ namespace cgba
         {
             return lh += rh;
         }
+
+        Ty MagnitudeSquared() const { return x * x + y * y;}
     };
+
+
 
     struct Rectangle
     {
         i32 width;
         i32 height;
     };
+
+    constexpr i32 Area(const Rectangle& r)
+    {
+        return r.width * r.height;
+    }    
+
+    constexpr Rectangle ElementWiseMul(const Rectangle& r1, const Rectangle& r2)
+    {
+        return { r1.width / r2.width, r1.height / r2.height };
+    }
+
+    constexpr Rectangle ElementWiseDiv(const Rectangle& r1, const Rectangle& r2)
+    {
+        return { r1.width / r2.width, r1.height / r2.height };
+    }
     
     static_assert(std::numeric_limits<float>::is_iec559);
 

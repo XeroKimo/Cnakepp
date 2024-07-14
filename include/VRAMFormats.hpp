@@ -10,7 +10,7 @@ namespace cgba
     template<bool isVolatile>
     class RGB15Template
     {
-        static constexpr u16 subColorMask = 0b0000'0000'0001'1111;
+        static constexpr u16 subColorMask = (1 << 5) - 1;
         static constexpr u16 u16RedBitShift = 0;
         static constexpr u16 u16GreenBitShift = 5;
         static constexpr u16 u16BlueBitShift = 10;
@@ -138,17 +138,19 @@ namespace cgba
     template<PaletteMode Mode, bool IsVolatile>
     struct CharacterTileTemplate;
 
+    constexpr Rectangle tileSizePixels{ 8, 8 };
+
     template<bool IsVolatile>
     struct CharacterTileTemplate<PaletteMode::Color16_Palette16, IsVolatile>
     {
         using PaletteIndex = PaletteIndexTemplate<PaletteMode::Color16_Palette16, IsVolatile>;
-        std::array<PaletteIndex, 8 * 8 / 2> data;
+        std::array<PaletteIndex, Area(tileSizePixels) / 2> data;
 
         constexpr CharacterTileTemplate() = default;
 
         //TODO: Implement this
-        constexpr CharacterTileTemplate(const std::array<Palette256Index, 8 * 8>& _data);
-        constexpr CharacterTileTemplate(const std::array<Palette16Index, 8 * 8 / 2>& _data) :
+        constexpr CharacterTileTemplate(const std::array<Palette256Index, Area(tileSizePixels)>& _data);
+        constexpr CharacterTileTemplate(const std::array<Palette16Index, Area(tileSizePixels) / 2>& _data) :
             data{ _data }
         {
             
@@ -159,13 +161,29 @@ namespace cgba
     struct CharacterTileTemplate<PaletteMode::Color256_Palette1, IsVolatile>
     {
         using PaletteIndex = PaletteIndexTemplate<PaletteMode::Color256_Palette1, IsVolatile>;
-        std::array<PaletteIndex, 8 * 8> data;
+        std::array<PaletteIndex, Area(tileSizePixels)> data;
     };
     
 
     using CharacterTile16 = CharacterTileTemplate<PaletteMode::Color16_Palette16, false>;
     using CharacterTile256 = CharacterTileTemplate<PaletteMode::Color256_Palette1, false>;
 
+    template<PaletteMode Mode>
+    struct PaletteModeToType;
+
+    template<>
+    struct PaletteModeToType<PaletteMode::Color16_Palette16>
+    {
+        using View = PaletteView16;
+        using CharacterTile = CharacterTile16;
+    };
+        
+    template<>
+    struct PaletteModeToType<PaletteMode::Color256_Palette1>
+    {
+        using View = PaletteView256;
+        using CharacterTile = CharacterTile256;
+    };
     
     template<PaletteMode Mode>
     class CharacterBlockViewTemplate
@@ -250,6 +268,119 @@ namespace cgba
         }
     };
 
+    struct AffineBackgroundTileDescription
+    {
+        u8 tileNumber;
+                
+        constexpr void SetTileNumber(Range<u32, 0, std::numeric_limits<u8>::max()> value)
+        {
+            tileNumber = static_cast<u8>(value);
+        }
+
+        constexpr Range<u32, 0, std::numeric_limits<u8>::max()> GetTileNumber() const
+        {
+            return tileNumber;
+        }
+    };
+
+    
+    enum class TextScreenSizeMode : u32
+    {
+        //256x256 pixel, supporting up to 32x32 tiles
+        W256_H256 = 0,
+        
+        //512x256 pixels, supporting up to 64x32 tiles
+        W512_H256 = 1,
+
+        //256x512 pixels, supporting up to 32x64 tiles
+        W256_H512 = 2,
+
+        //512x512 pixels, supporting up to 64x64 tiles
+        W512_H512 = 3
+    };
+    
+    enum class AffineScreenSizeMode : u32
+    {
+        //128x128 pixel, supporting up to 16x16 tiles
+        W128_H128 = 0,
+        
+        //256x256 pixels, supporting up to 32x32 tiles
+        W256_H256 = 1,
+
+        //512x512 pixels, supporting up to 64x64 tiles
+        W512_H512 = 2,
+
+        //1024x1024 pixels, supporting up to 128x128 tiles
+        W1024_H1024 = 3
+    };
+    
+    template<auto Mode>
+    struct ScreenSizeConstants;
+
+    template<>
+    struct ScreenSizeConstants<TextScreenSizeMode::W256_H256>
+    {
+        static constexpr Rectangle screenSizePixels{ 256, 256 };
+        static constexpr Rectangle screenSizeTiles{ 32, 32 };
+        using TileDescription = TextBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<TextScreenSizeMode::W512_H256>
+    {
+        static constexpr Rectangle screenSizePixels{ 512, 256 };
+        static constexpr Rectangle screenSizeTiles{ 64, 32 };
+        using TileDescription = TextBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<TextScreenSizeMode::W256_H512>
+    {
+        static constexpr Rectangle screenSizePixels{ 256, 512 };
+        static constexpr Rectangle screenSizeTiles{ 32, 64 };
+        using TileDescription = TextBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<TextScreenSizeMode::W512_H512>
+    {
+        static constexpr Rectangle screenSizePixels{ 512, 512 };
+        static constexpr Rectangle screenSizeTiles{ 64, 64 };
+        using TileDescription = TextBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<AffineScreenSizeMode::W128_H128>
+    {
+        static constexpr Rectangle screenSizePixels{ 256, 256 };
+        static constexpr Rectangle screenSizeTiles{ 16, 16 };
+        using TileDescription = AffineBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<AffineScreenSizeMode::W256_H256>
+    {
+        static constexpr Rectangle screenSizePixels{ 512, 256 };
+        static constexpr Rectangle screenSizeTiles{ 32, 32 };
+        using TileDescription = AffineBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<AffineScreenSizeMode::W512_H512>
+    {
+        static constexpr Rectangle screenSizePixels{ 256, 512 };
+        static constexpr Rectangle screenSizeTiles{ 64, 64 };
+        using TileDescription = AffineBackgroundTileDescription;
+    };
+
+    template<>
+    struct ScreenSizeConstants<AffineScreenSizeMode::W1024_H1024>
+    {
+        static constexpr Rectangle screenSizePixels{ 1024, 1024 };
+        static constexpr Rectangle screenSizeTiles{ 128, 128 };
+        using TileDescription = AffineBackgroundTileDescription;
+    };
+
     class TextScreenBlockView
     {
     private:
@@ -267,6 +398,33 @@ namespace cgba
         description_type& operator[](u32 index)
         {
             return baseAddress[index];
+        }
+    };
+
+    template<TextScreenSizeMode SizeMode>
+    class StaticTextScreenBlockView
+    {
+    private:
+        using description_type = TextBackgroundTileDescription;
+
+        description_type* baseAddress;
+
+    public:
+        StaticTextScreenBlockView(Range<u32, 0, 31> baseBlock) :
+            baseAddress{ &Memory<description_type>(vram + screen_block_increments * baseBlock)}
+        {
+            
+        }
+        
+        description_type& operator[](u32 index)
+        {
+            BN_ASSERT(index < Area(ScreenSizeConstants<SizeMode>::screenSizeTiles));
+            return baseAddress[index];
+        }
+        
+        description_type& operator[](Point<i16> index)
+        {
+            return operator[](index.x + index.y * ScreenSizeConstants<SizeMode>::screenSizeTiles.width);
         }
     };
 }
